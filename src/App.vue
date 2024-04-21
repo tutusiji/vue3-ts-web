@@ -1,4 +1,4 @@
-  <!-- <div>
+<!-- <div>
     <a href="https://vitejs.dev" target="_blank">
       <img src="/vite.svg" class="logo" alt="Vite logo" />
     </a>
@@ -7,10 +7,10 @@
     </a>
   </div> -->
 
-
 <template>
   <div class="fff bg-white mb-40">123123123123123</div>
   <div class="mb-10">HomePage</div>
+  1111
   <div>
     <el-radio-group v-model="radio1" size="large">
       <el-radio-button label="New York" value="New York" />
@@ -49,6 +49,8 @@ const radio2 = ref('New York')
 const radio3 = ref('New York')
 const radio3333 = ref('New York')
 
+// eslint-disable-next-line no-undef
+console.log(process.env.NODE_ENV)
 </script>
 
 <style scoped>

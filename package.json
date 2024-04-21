@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vue-tsc && vite build",
+    "dev": "cross-env NODE_ENV=development vite",
+    "build": "cross-env NODE_ENV=production vue-tsc && vite build",
     "preview": "vite preview",
     "eslint": "eslint src --fix",
     "prettier": "prettier --write \"./**/*.{html,vue,ts,js,json,md}\"",
@@ -23,6 +23,7 @@
   "dependencies": {
     "@vitejs/plugin-vue-jsx": "^3.1.0",
     "autoprefixer": "^10.4.19",
+    "axios": "^1.6.8",
     "element-plus": "^2.7.1",
     "pinia": "^2.1.7",
     "vite-plugin-vue-devtools": "^7.0.27",
@@ -37,6 +38,7 @@
     "@vitejs/plugin-vue": "^5.0.4",
     "better-docs": "^2.7.3",
     "commitizen": "^4.3.0",
+    "cross-env": "^7.0.3",
     "cz-conventional-changelog": "^3.3.0",
     "eslint": "^8.56.0",
     "eslint-plugin-vue": "^9.25.0",
