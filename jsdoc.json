@@ -1,0 +1,13 @@
+{
+  "source": {
+    "include": ["src"],
+    "includePattern": ".+\\.(ts|tsx|js|jsx)$",
+    "excludePattern": "(^|\\/|\\\\)_"
+  },
+  "plugins": ["plugins/typescript","node_modules/better-docs/typescript"],
+  "opts": {
+    "destination": "docs/",
+    "template": "node_modules/better-docs",
+    "recurse": true
+  }
+}

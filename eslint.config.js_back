@@ -1,0 +1,35 @@
+import globals from "globals";
+import pluginJs from "@eslint/js";
+import tseslint from "typescript-eslint";
+import pluginVue from "eslint-plugin-vue";
+
+export default {
+  // 其他配置
+  ignorePatterns: [
+    "**/node_modules/**", // 忽略 node_modules 目录
+    "**/*.min.js", // 忽略所有压缩的 JavaScript 文件
+    // 更多模式...
+  ],
+  languageOptions: {
+    globals: globals.browser,
+  },
+  extends: [
+    "plugin:@eslint/js/recommended",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:vue/essential",
+  ],
+  overrides: [
+    {
+      files: ["*.js", "*.jsx"],
+      extends: ["plugin:@eslint/js/recommended"],
+    },
+    {
+      files: ["*.ts", "*.tsx"],
+      extends: ["plugin:@typescript-eslint/recommended"],
+    },
+    {
+      files: ["*.vue"],
+      extends: ["plugin:vue/essential"],
+    },
+  ],
+};
