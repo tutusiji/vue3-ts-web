@@ -1,72 +1,200 @@
-<!-- <div>
-    <a href="https://vitejs.dev" target="_blank">
-      <img src="/vite.svg" class="logo" alt="Vite logo" />
-    </a>
-    <a href="https://vuejs.org/" target="_blank">
-      <img src="./assets/vue.svg" class="logo vue" alt="Vue logo" />
-    </a>
-  </div> -->
-
 <template>
-  <div class="fff bg-white mb-40">123123123123123</div>
-  <div class="mb-10">HomePage</div>
-  1111
   <div>
-    <el-radio-group v-model="radio1" size="large">
-      <el-radio-button label="New York" value="New York" />
-      <el-radio-button label="Washington" value="Washington" />
-      <el-radio-button label="Los Angeles" value="Los Angeles" />
-      <el-radio-button label="Chicago" value="Chicago" />
-    </el-radio-group>
-  </div>
-  <div style="margin-top: 20px">
-    <el-radio-group v-model="radio2">
-      <el-radio-button label="New York" value="New York" />
-      <el-radio-button label="Washington" value="Washington" />
-      <el-radio-button label="Los Angeles" value="Los Angeles" />
-      <el-radio-button label="Chicago" value="Chicago" />
-    </el-radio-group>
-  </div>
-  <div style="margin-top: 20px">
-    <el-radio-group v-model="radio3" size="small">
-      <el-radio-button label="New York" value="New York" />
-      <el-radio-button label="Washington" value="Washington" disabled />
-      <el-radio-button label="Los Angeles" value="Los Angeles" />
-      <el-radio-button label="Chicago" value="Chicago" />
-    </el-radio-group>
-  </div>
+    <el-table
+      :data="tableData"
+      style="width: 100%; margin-bottom: 20px"
+      row-key="id"
+      border
+      default-expand-all
+      @selection-change="handleSelectionChange"
+    >
+      <!-- Date column with checkbox for select all -->
+      <el-table-column label="Date" sortable>
+        <template #header>
+          <el-checkbox
+            :indeterminate="isIndeterminate"
+            v-model="selectAllChecked"
+            @change="toggleSelectAll"
+            >Select All</el-checkbox
+          >
+        </template>
+        <template #default="scope">
+          <el-checkbox
+            v-if="!scope.row.parentId"
+            v-model="scope.row.checked"
+            @change="() => checkboxChanged(scope.row)"
+            style="margin-right: 8px"
+          ></el-checkbox>
+          {{ scope.row.date }}
+        </template>
+      </el-table-column>
 
-  {{ generateArray(20) }}
+      <!-- Other columns without checkboxes -->
+      <el-table-column
+        v-for="col in otherColumns"
+        :key="col.prop"
+        :prop="col.prop"
+        :label="col.label"
+        :sortable="col.sortable"
+      ></el-table-column>
+
+      <!-- Actions column with links -->
+      <el-table-column label="Actions">
+        <template #default="scope">
+          <a href="#" @click.prevent="editItem(scope)">Edit</a>
+          <a href="#" @click.prevent="deleteItem(scope)" style="margin-left: 10px">Delete</a>
+        </template>
+      </el-table-column>
+    </el-table>
+  </div>
 </template>
 
-<script setup lang="ts">
-import HelloWorld from './components/HelloWorld.vue'
-import { generateArray } from 'Utils/tools' // 使用Utils别名
+<script lang="ts" setup>
+import { ref, computed } from 'vue'
 
-console.log(generateArray(20))
-const radio1 = ref('New York')
-const radio2 = ref('New York')
-const radio3 = ref('New York')
-const radio3333 = ref('New York')
+interface User {
+  id: number
+  date: string
+  name: string
+  address: string
+  parentId?: number
+  hasChildren?: boolean
+  children?: User[]
+  checked?: boolean
+}
 
-// eslint-disable-next-line no-undef
-console.log(process.env.NODE_ENV)
+const tableData = ref<User[]>([
+  {
+    id: 1,
+    parentId: 1,
+    date: '2016-05-02',
+    name: 'wangxiaohu',
+    address: 'No. 189, Grove St, Los Angeles'
+  },
+  {
+    id: 2,
+    parentId: 2,
+    date: '2016-05-04',
+    name: 'wangxiaohu',
+    address: 'No. 189, Grove St, Los Angeles'
+  },
+  {
+    id: 3,
+    parentId: 3,
+    date: '2016-05-01',
+    name: 'wangxiaohu',
+    address: 'No. 189, Grove St, Los Angeles',
+    children: [
+      {
+        id: 31,
+        date: '2016-05-01',
+        name: 'wangxiaohu',
+        checked: false,
+        address: 'No. 189, Grove St, Los Angeles',
+        children: [
+          {
+            id: 53,
+            date: '2016-05-01',
+            checked: false,
+            name: 'wangxiaoh111111u',
+            address: 'No. 189, Grove St, Los Angeles'
+          },
+          {
+            id: 54,
+            date: '2016-05-011111',
+            checked: false,
+            name: 'wangxi1111aohu',
+            address: 'No. 189, Grove St, Los Angeles'
+          }
+        ]
+      },
+      {
+        id: 32,
+        checked: false,
+        date: '2016-05-01',
+        name: 'wangxiaohu',
+        address: 'No. 189, Grove St, Los Angeles'
+      }
+    ]
+  },
+  {
+    id: 4,
+    parentId: 4,
+    date: '2016-05-03',
+    name: 'wangxiaohu',
+    address: 'No. 189, Grove St, Los Angeles'
+  }
+])
+
+const columns = ref([
+  { prop: 'date', label: 'Date', sortable: true },
+  { prop: 'name', label: 'Name', sortable: true },
+  { prop: 'address', label: 'Address', sortable: true }
+])
+
+const otherColumns = computed(() => {
+  return columns.value.filter((col) => col.prop !== 'date')
+})
+
+const selectAllChecked = ref(false)
+const isIndeterminate = ref(false)
+
+function toggleSelectAll(checked: boolean) {
+  tableData.value.forEach((row) => {
+    if (row.children && row.children.length > 0) {
+      // Only toggle rows that are not top-level
+      row.checked = checked
+      checkboxChanged(row)
+    }
+  })
+}
+
+function checkboxChanged(item: User) {
+  // Update children's checked state recursively
+  const toggleChildrenChecked = (children: User[], checked: boolean) => {
+    if (children && children.length) {
+      children.forEach((child) => {
+        child.checked = checked
+        toggleChildrenChecked(child.children, checked)
+      })
+    }
+  }
+
+  toggleChildrenChecked(item.children, item.checked)
+
+  // Adjust parent's checked state
+  const updateParentChecked = (currentItem: User) => {
+    const parentItem = findParent(currentItem, tableData.value)
+    if (parentItem && parentItem.children) {
+      parentItem.checked = parentItem.children.every((child) => child.checked)
+      updateParentChecked(parentItem)
+    }
+  }
+
+  updateParentChecked(item)
+}
+
+function findParent(childItem: User, allData: User[]): User | undefined {
+  // Recursive function to find parent
+}
+
+function editItem(item: User) {
+  console.log('Editing item:', item)
+}
+
+function deleteItem(item: User) {
+  console.log('Deleting item:', item)
+}
+
+function handleSelectionChange(selectedItems: User[]) {
+  console.log('Selected items:', selectedItems)
+  updateIndeterminateState()
+}
+
+function updateIndeterminateState() {
+  const total = tableData.value.filter((row) => row.children && row.children.length > 0).length
+  const checkedCount = tableData.value.filter((row) => row.checked).length
+  selectAllChecked.value = checkedCount === total
+  isIndeterminate.value = checkedCount > 0 && checkedCount < total
+}
 </script>
-
-<style scoped>
-.logo {
-  padding: 1.5em;
-  width: 100px;
-  height: 6em;
-  transition: filter 300ms;
-  will-change: filter;
-}
-
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-
-.logo.vue:hover {
-  filter: drop-shadow(0 0 2em #42b883aa);
-}
-</style>
