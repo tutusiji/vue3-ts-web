@@ -197,4 +197,6 @@ function updateIndeterminateState() {
   selectAllChecked.value = checkedCount === total
   isIndeterminate.value = checkedCount > 0 && checkedCount < total
 }
+
+  
 </script>
