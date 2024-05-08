@@ -1,3 +1,40 @@
+<template>
+  <div>
+    <el-cascader
+      ref="cascader"
+      :options="options"
+      filterable
+      :filter-method="customFilter"
+      :before-filter="handleBeforeFilter"
+      @blur="handleBlur"
+      placeholder="尝试搜索：指南"
+    />
+  </div>
+</template>
+
+<script lang="ts" setup>
+import { ElCascader } from 'element-plus'
+
+const cascaderRef = ref<InstanceType<typeof ElCascader>>()
+const userInput = ref('')
+function customFilter(query, item, path) {
+  return path.some((option) => option.label.toLowerCase().includes(item.toLowerCase()))
+}
+
+function handleBeforeFilter(item) {
+  userInput.value = item
+  return true
+}
+
+function handleBlur() {
+  console.log('失焦时的用户输入:', userInput.value)
+  if (cascaderRef.value) {
+    cascaderRef.value.inputValue = userInput.value // 尝试在组件失焦时恢复用户输入
+  }
+}
+const props = {
+  multiple: true
+}
 
 const options = [
   {
@@ -286,3 +323,29 @@ function findItemByValueOrLabel(options, key, match) {
 
 const result = findItemByValueOrLabel(options, 'label', 'Disciplines');
 console.log(result);
+
+function findAllItemsByValueOrLabel(options, match) {
+    let matches = [];  // 初始化一个空数组用于存储所有匹配的项目
+
+    // 定义一个递归函数来遍历和检查每一个选项
+    function searchItems(items) {
+        for (const item of items) {
+            // 使用.includes()方法检查当前选项的value或label是否包含match文本
+            if (item.value.includes(match) || item.label.includes(match)) {
+                matches.push(item);  // 如果匹配，添加到结果数组中
+            }
+            // 如果有子项，递归搜索子项
+            if (item.children) {
+                searchItems(item.children);
+            }
+        }
+    }
+
+    searchItems(options);  // 开始递归搜索
+
+    return matches;  // 返回包含所有匹配项的数组
+}
+const resultsall = findAllItemsByValueOrLabel(options, 'e');
+console.log(resultsall);
+
+</script>
