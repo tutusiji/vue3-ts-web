@@ -1,4 +1,4 @@
-import './assets/style.css'
+// import './assets/style.css'
 import './assets/tailwind.css'
 import 'vue-global-api'
 import { createApp } from 'vue'

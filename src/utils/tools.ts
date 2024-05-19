@@ -17,3 +17,8 @@ export const generateArray = function (n: number): number[] {
 function sum(title:string, age:number) {
     return title + age;
 }
+
+
+export function resolveComponent(name: string) {
+  return name.charAt(0).toUpperCase() + name.slice(1)
+}
