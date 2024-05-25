@@ -161,7 +161,7 @@
           <div class="card-header flex items-center justify-between">
             <span>表单页面预览区</span>
             <div>
-              <el-button @click="readConfig">查看json配置</el-button>
+              <el-button @click="readConfig">查看Json配置</el-button>
               <el-button @click="saveFormConfig">保存为模板</el-button>
               <el-button @click="saveFormConfig">分享</el-button>
               <el-button type="primary" @click="saveFormConfig">保存</el-button>
@@ -511,6 +511,7 @@ const getCityTree = async () => {
 }
 
 onMounted(() => {
+  document.title = "动态表单引擎"
   // getUserData()
   getOrgTree()
   getCityTree()
