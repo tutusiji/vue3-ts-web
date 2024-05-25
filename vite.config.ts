@@ -8,6 +8,7 @@ import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 import tailwindcss from 'tailwindcss'
 import autoprefixer from 'autoprefixer'
 import VueDevTools from 'vite-plugin-vue-devtools'
+import { prismjsPlugin } from 'vite-plugin-prismjs'
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -15,6 +16,12 @@ export default defineConfig({
     vue(),
     vueJsx(),
     VueDevTools(),
+    prismjsPlugin({
+      languages: 'all',
+      plugins: ['line-numbers', 'copy-to-clipboard'], // 官网有其他功能,这里开启行数和复制按钮功能
+      theme: 'okaidia',
+      css: true
+    }),
     AutoImport({
       imports: ['vue', 'vue-router', 'pinia'],
       dts: 'auto-imports.d.ts',

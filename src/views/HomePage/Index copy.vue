@@ -24,7 +24,7 @@
 
 <script setup>
 import type { ComponentSize, FormInstance, FormRules } from 'element-plus'
-import { formConfig } from './config'
+import { formConfig } from '../../store/config'
 
 interface RuleForm {
   name: string
