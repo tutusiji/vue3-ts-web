@@ -1,27 +1,29 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueJsx from '@vitejs/plugin-vue-jsx'
-import * as path from 'path'
+// import * as path from 'path'
+import { fileURLToPath } from 'url';
+import path from 'path';
+// 获取当前文件的路径
+const __filename = fileURLToPath(import.meta.url);
+
+// 获取当前文件的目录路径
+const __dirname = path.dirname(__filename);
+
 import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 import tailwindcss from 'tailwindcss'
 import autoprefixer from 'autoprefixer'
 import VueDevTools from 'vite-plugin-vue-devtools'
-import { prismjsPlugin } from 'vite-plugin-prismjs'
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  base: '/demo/formEngine/',
   plugins: [
     vue(),
     vueJsx(),
     VueDevTools(),
-    prismjsPlugin({
-      languages: 'all',
-      plugins: ['line-numbers', 'copy-to-clipboard'], // 官网有其他功能,这里开启行数和复制按钮功能
-      theme: 'okaidia',
-      css: true
-    }),
     AutoImport({
       imports: ['vue', 'vue-router', 'pinia'],
       dts: 'auto-imports.d.ts',

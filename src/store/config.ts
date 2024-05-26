@@ -1,10 +1,27 @@
+export const editConfig = [
+  {
+    label: '文本框-单行',
+    key: 'name',
+    column: 3,
+    gutter: 20,
+    length: 20,
+    comName: 'TextInput',
+    comType: 'text',
+    dataType: 'string',
+    required: true
+  }
+]
+
 export const formConfig = [
   {
     label: '文本框-单行',
     key: 'name',
     column: 3,
+    gutter: 20,
+
     length: 20,
     comName: 'TextInput',
+    comlabel: '文本框-单行',
     comType: 'text',
     dataType: 'string',
     required: true,
@@ -16,6 +33,7 @@ export const formConfig = [
     label: '文本框-多行',
     key: 'name',
     column: 3,
+
     length: 20,
     comName: 'TextInput',
     comType: 'text',
@@ -29,6 +47,7 @@ export const formConfig = [
     label: '项目名称备注',
     key: 'remark',
     column: 3,
+
     length: 50,
     comName: 'TextInput',
     comType: 'text',
@@ -42,6 +61,7 @@ export const formConfig = [
     label: '手机号',
     key: 'phone',
     column: 3,
+
     length: 11,
     comName: 'TextInput',
     comType: 'text',
@@ -59,6 +79,7 @@ export const formConfig = [
     label: '金额',
     key: 'money',
     column: 3,
+
     comName: 'TextInput',
     comType: 'text',
     dataType: 'number',
@@ -77,6 +98,7 @@ export const formConfig = [
     label: '参与人数',
     key: 'peops',
     column: 3,
+
     comName: 'NumberInput',
     dataType: 'number',
     required: true,
@@ -87,6 +109,7 @@ export const formConfig = [
     label: '邮箱',
     key: 'email',
     column: 3,
+
     length: 30,
     comName: 'TextInput',
     comType: 'text',
@@ -135,6 +158,7 @@ export const formConfig = [
     label: '省/市/县 级联 单选',
     key: 'address',
     column: 3,
+
     comName: 'Cascabox',
     comType: 'cascader',
     dataType: 'string',
@@ -155,6 +179,7 @@ export const formConfig = [
     label: '学校/学院/专业 级联 多选',
     key: 'schoolList',
     column: 3,
+
     comName: 'Cascabox',
     comType: 'cascader',
     dataType: 'array',
@@ -181,6 +206,7 @@ export const formConfig = [
       3: 'major'
     },
     column: 3,
+
     comName: 'BasicSelect',
     comType: 'selectgroup', // 下拉联动 comType 为selectgroup
     dataType: 'string',
@@ -231,6 +257,7 @@ export const formConfig = [
       3: 'major'
     },
     column: 3,
+
     comName: 'BasicSelect',
     comType: 'selectgroup', // 下拉联动 comType 为selectgroup
     dataType: 'string',
@@ -250,6 +277,8 @@ export const formConfig = [
     label: '项目介绍',
     key: 'desc',
     column: 1,
+
+    length: 500,
     comName: 'TextInput',
     comType: 'textarea',
     dataType: 'string',
@@ -260,11 +289,20 @@ export const formConfig = [
   }
 ]
 
-export const modelsData = [
+export const modelsConfig = [
   {
-    label: '项目评审模板',
-    comName: 'projectReview',
-    data: [
+    baseInfo: {
+      comName: '项目评审模板',
+      comId: 'projectReview',
+      gutter: 20,
+      spacing: 20,
+      formSize: 'large',
+      labelPosition: 'top',
+      comType: 'form',
+      dataType: 'object',
+      required: true
+    },
+    comList: [
       {
         label: '项目名称2',
         key: 'name',
@@ -282,6 +320,7 @@ export const modelsData = [
         label: '项目名称备注',
         key: 'remark',
         column: 3,
+
         length: 50,
         comName: 'TextInput',
         comType: 'text',
@@ -295,6 +334,7 @@ export const modelsData = [
         label: '手机号',
         key: 'phone',
         column: 3,
+
         length: 11,
         comName: 'TextInput',
         comType: 'text',
@@ -312,6 +352,7 @@ export const modelsData = [
         label: '金额',
         key: 'money',
         column: 3,
+
         comName: 'TextInput',
         comType: 'text',
         dataType: 'number',
@@ -330,6 +371,7 @@ export const modelsData = [
         label: '参与人数',
         key: 'peops',
         column: 3,
+
         comName: 'NumberInput',
         dataType: 'number',
         required: true,
@@ -340,6 +382,7 @@ export const modelsData = [
         label: '邮箱',
         key: 'email',
         column: 3,
+
         length: 30,
         comName: 'TextInput',
         comType: 'text',
@@ -364,6 +407,8 @@ export const modelsData = [
         label: '奖励级别 基础下拉',
         key: 'level',
         column: 3,
+        gutter: 20,
+
         comName: 'BasicSelect',
         comType: 'select',
         dataType: 'string',
@@ -388,6 +433,7 @@ export const modelsData = [
         label: '省/市/县 级联 单选',
         key: 'address',
         column: 3,
+
         comName: 'Cascabox',
         comType: 'cascader',
         dataType: 'string',
@@ -408,6 +454,7 @@ export const modelsData = [
         label: '学校/学院/专业 级联 多选',
         key: 'schoolList',
         column: 3,
+
         comName: 'Cascabox',
         comType: 'cascader',
         dataType: 'array',
@@ -434,6 +481,7 @@ export const modelsData = [
           3: 'major'
         },
         column: 3,
+
         comName: 'BasicSelect',
         comType: 'selectgroup', // 下拉联动 comType 为selectgroup
         dataType: 'string',
@@ -459,6 +507,7 @@ export const modelsData = [
           3: 'major'
         },
         column: 3,
+
         comName: 'BasicSelect',
         comType: 'selectgroup', // 下拉联动 comType 为selectgroup
         dataType: 'string',
@@ -484,6 +533,7 @@ export const modelsData = [
           3: 'major'
         },
         column: 3,
+
         comName: 'BasicSelect',
         comType: 'selectgroup', // 下拉联动 comType 为selectgroup
         dataType: 'string',
@@ -503,6 +553,8 @@ export const modelsData = [
         label: '项目介绍',
         key: 'desc',
         column: 1,
+
+        length: 500,
         comName: 'TextInput',
         comType: 'textarea',
         dataType: 'string',
@@ -514,13 +566,23 @@ export const modelsData = [
     ]
   },
   {
-    label: '团建出行模板',
-    comName: 'travelReview',
-    data: [
+    baseInfo: {
+      comName: '团建出行模板',
+      comId: 'travelReview',
+      gutter: 20,
+      spacing: 20,
+      formSize: 'small',
+      labelPosition: 'top',
+      comType: 'form',
+      dataType: 'object',
+      required: true
+    },
+    comList: [
       {
         label: '团建出行地点名称',
         key: 'name',
         column: 3,
+        gutter: 20,
         length: 20,
         comName: 'TextInput',
         comType: 'text',
@@ -533,12 +595,22 @@ export const modelsData = [
     ]
   },
   {
-    label: '文化衫信息登记模板',
-    comName: 'T-shirtReview',
-    data: [
+    baseInfo: {
+      comName: '文化衫信息登记模板',
+      comId: 'T-shirtReview',
+      gutter: 20,
+      spacing: 20,
+      formSize: 'default',
+      labelPosition: 'top',
+      comType: 'form',
+      dataType: 'object',
+      required: true
+    },
+    comList: [
       {
         label: '你的姓名',
         key: 'name',
+        gutter: 20,
         column: 3,
         length: 20,
         comName: 'TextInput',
@@ -553,6 +625,7 @@ export const modelsData = [
         label: '尺寸选择',
         key: 'level',
         column: 3,
+
         comName: 'BasicSelect',
         comType: 'select',
         dataType: 'string',
@@ -577,24 +650,4 @@ export const modelsData = [
       }
     ]
   }
-  // {
-  //   label: '文化衫信息登记模板2',
-  //   comName: 'T-shirtReview',
-  //   data: []
-  // },
-  // {
-  //   label: '文化衫信息登记模板3',
-  //   comName: 'T-shirtReview',
-  //   data: []
-  // },
-  // {
-  //   label: '文化衫信息登记模板44',
-  //   comName: 'T-shirtReview',
-  //   data: []
-  // },
-  // {
-  //   label: '文化衫信息登记模板55',
-  //   comName: 'T-shirtReview',
-  //   data: []
-  // }
 ]

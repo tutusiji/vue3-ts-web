@@ -1,7 +1,7 @@
 <template>
   <el-row class="h-[100vh] overflow-hidden">
-    <el-col :span="4" class="p-1 bg-green-300">
-      <el-card class="w-[100%]">
+    <el-col v-loading="loading_com" :span="pageColumns[0]" class="p-1 bg-green-300">
+      <el-card class="w-[100%]" :body-style="{ padding: '0px' }">
         <template #header>
           <div class="card-header">
             <div class="card-header flex items-center justify-between">
@@ -10,32 +10,46 @@
             </div>
           </div>
         </template>
-        <div class="h-[calc(100vh-86px)] overflow-x-hidden overflow-y-auto">
-          <div
-            v-for="item in configStore.modelsData"
-            :key="item.label"
-            class="flex items-center w-[100%] hover:bg-violet-100 cursor-pointer p-2 rounded-md"
-            shadow="hover"
-            @click="addFormModel(item)"
-          >
-            <el-icon class="mr-2"><Document /></el-icon>{{ item.label }}
-          </div>
-          <ul>
-            <li v-for="item in configStore.formConfig" :key="item.label" class="p-2">
-              <el-button @click="addFormItem(item)">{{ item.label }}</el-button>
-            </li>
-          </ul>
+        <div class="h-[calc(100vh-86px)] overflow-x-hidden overflow-y-auto p-2">
+          <!-- :class="[
+              modelCurrent === item.baseInfo.comId &&
+                'border border-green-200 bg-green-50 border-dashed shadow-md'
+            ]" -->
+          <el-collapse v-model="comCellNames">
+            <el-collapse-item title="模板库" name="1">
+              <div
+                v-for="item in configStore.modelsConfig"
+                :key="item.baseInfo.comId"
+                class="group flex items-center w-[100%] hover:bg-green-50 hover:shadow-md cursor-pointer p-2 rounded-md transition-all"
+                @click="addFormModel(item)"
+              >
+                <el-icon class="mr-2"
+                  ><Document
+                    class="cursor-pointer transition-transform group-hover:rotate-45 duration-300" /></el-icon
+                >{{ item.baseInfo.comName }}
+              </div>
+            </el-collapse-item>
+            <el-collapse-item title="组件库" name="2">
+              <ul>
+                <li v-for="item in configStore.formConfig" :key="item.label" class="p-2">
+                  <el-button @click="addFormItem(item)"
+                    ><el-icon class="mr-2"><SetUp /></el-icon>{{ item.label }}</el-button
+                  >
+                </li>
+              </ul>
+            </el-collapse-item>
+          </el-collapse>
         </div>
       </el-card>
     </el-col>
-    <el-col :span="7" class="p-1 bg-violet-300">
+    <el-col v-loading="loading" :span="pageColumns[1]" class="p-1 bg-violet-300">
       <!-- <el-row class="bg-[#fff] mb-3">
         <el-card class="dropbg h-[200px] w-[100%] flex items-center justify-center">
           <p class="p-3">拖拽组件到这里</p>
         </el-card>
       </el-row> -->
       <el-row>
-        <el-card class="w-[100%]">
+        <el-card class="w-[100%]" :body-style="{ padding: '0px' }">
           <template #header>
             <div class="card-header flex items-center justify-between">
               <span>表单页面配置编辑区</span>
@@ -49,117 +63,158 @@
                     </el-button>
                   </div>
                   <template #reference>
-                    <el-button type="danger" @click="visible = true">清空页面配置</el-button>
+                    <!-- type="danger" -->
+                    <el-button @click="visible = true">清空页面配置</el-button>
                   </template>
                 </el-popover>
               </div>
             </div>
           </template>
-          <div class="h-[calc(100vh-86px)] overflow-x-hidden overflow-y-auto">
-            <el-form label-position="left" status-icon>
-              <div class="text-[16px] mb-3 pb-3 border-b">基础信息配置</div>
-              <el-form-item label="控件大小">
-                <el-radio-group v-model="formSize">
-                  <el-radio-button value="large">大</el-radio-button>
-                  <el-radio-button value="default">中</el-radio-button>
-                  <el-radio-button value="small">小</el-radio-button>
-                </el-radio-group>
-              </el-form-item>
-              <el-form-item label="对齐方式">
-                <el-radio-group v-model="labelPosition">
-                  <el-radio-button value="top">上</el-radio-button>
-                  <el-radio-button value="left">左</el-radio-button>
-                  <el-radio-button value="right">右</el-radio-button>
-                </el-radio-group>
-              </el-form-item>
-              <el-form-item label="布局方式">
-                <div class="w-[100%] flex items-center justify-between">
-                  <el-radio-group
-                    v-model="layout"
-                    aria-label="布局方式"
-                    @change="handleLayoutChange"
+          <div class="h-[calc(100vh-86px)] overflow-x-hidden overflow-y-auto p-2">
+            <el-form label-position="right" label-width="80" status-icon>
+              <el-collapse v-model="editCellNames">
+                <el-collapse-item title="基础信息配置" name="1">
+                  <el-form-item label="表单名称">
+                    <el-input v-model="configStore.createData.baseInfo.comName"> </el-input>
+                  </el-form-item>
+                  <el-form-item label="表单ID">
+                    <el-input v-model="configStore.createData.baseInfo.comId"> </el-input>
+                  </el-form-item>
+                  <el-form-item label="控件大小">
+                    <el-radio-group
+                      v-model="configStore.createData.baseInfo.formSize"
+                      @change="handleFormSizeChange"
+                    >
+                      <el-radio-button value="large">大</el-radio-button>
+                      <el-radio-button value="default">中</el-radio-button>
+                      <el-radio-button value="small">小</el-radio-button>
+                    </el-radio-group>
+                  </el-form-item>
+                  <el-form-item label="标签位置">
+                    <el-radio-group
+                      v-model="configStore.createData.baseInfo.labelPosition"
+                      @change="handleLabelPositionChange"
+                    >
+                      <el-radio-button value="top">上</el-radio-button>
+                      <el-radio-button value="left">左</el-radio-button>
+                      <el-radio-button value="right">右</el-radio-button>
+                    </el-radio-group>
+                  </el-form-item>
+                  <el-form-item label="布局分栏">
+                    <div class="w-[100%] flex justify-between flex-col">
+                      <el-radio-group
+                        v-model="configStore.createData.baseInfo.column"
+                        @change="handleLayoutModeChange"
+                      >
+                        <el-radio-button :value="1">单列</el-radio-button>
+                        <el-radio-button :value="2">两列</el-radio-button>
+                        <el-radio-button :value="3">三列</el-radio-button>
+                        <el-radio-button :value="4">四列</el-radio-button>
+                      </el-radio-group>
+                      <el-slider
+                        v-model="configStore.createData.baseInfo.column"
+                        :min="0"
+                        :max="24"
+                        show-input
+                        @change="handleColumnsChange"
+                      />
+                    </div>
+                  </el-form-item>
+                  <el-form-item label="栅格间隔">
+                    <div class="w-[100%] flex justify-between flex-col">
+                      <el-radio-group
+                        v-model="configStore.createData.baseInfo.gutter"
+                        @change="handleGutterChange"
+                      >
+                        <el-radio-button :label="0">无间隔</el-radio-button>
+                        <el-radio-button :label="10">10px</el-radio-button>
+                        <el-radio-button :label="20">20px</el-radio-button>
+                        <el-radio-button :label="30">30px</el-radio-button>
+                      </el-radio-group>
+                      <el-slider
+                        v-model="configStore.createData.baseInfo.gutter"
+                        :min="0"
+                        :max="300"
+                        show-input
+                        @change="handleGutterChange"
+                      />
+                    </div>
+                  </el-form-item>
+                  <el-form-item label="上下间距">
+                    <div class="w-[100%] flex justify-between flex-col">
+                      <el-radio-group
+                        v-model="configStore.createData.baseInfo.spacing"
+                        @change="handleSpacingChange"
+                      >
+                        <el-radio-button :label="0">无间隔</el-radio-button>
+                        <el-radio-button :label="10">10px</el-radio-button>
+                        <el-radio-button :label="20">20px</el-radio-button>
+                        <el-radio-button :label="30">30px</el-radio-button>
+                      </el-radio-group>
+                      <el-slider
+                        v-model="configStore.createData.baseInfo.spacing"
+                        :min="0"
+                        :max="300"
+                        show-input
+                        @change="handleSpacingChange"
+                      />
+                    </div>
+                  </el-form-item>
+                </el-collapse-item>
+                <el-collapse-item title="控件编辑" name="2">
+                  <!-- <transition-group name="fade" mode="out-in"> -->
+                  <div
+                    v-for="(item, index) in configStore.createData.comList"
+                    :key="item.key + index"
+                    :class="[
+                      configStore.currentItem === index &&
+                        ' border-violet-400 border-dashed shadow-md',
+                      ' border mb-4 p-2 rounded-md'
+                    ]"
+                    @mouseover="handleMouseOver(index)"
+                    @mouseleave="handleMouseLeave"
                   >
-                    <el-radio-button value="single">单列</el-radio-button>
-                    <el-radio-button value="inline">多列</el-radio-button>
-                  </el-radio-group>
-                  <el-slider
-                    v-if="layout === 'inline'"
-                    v-model="columns"
-                    :min="1"
-                    :max="24"
-                    show-input
-                    style="width: 260px"
-                    @change="handleColumnsChange"
-                  />
-                </div>
-              </el-form-item>
-              <el-form-item label="栅格间隔">
-                <div class="w-[100%] flex justify-between flex-col">
-                  <el-radio-group
-                    v-model="gutter"
-                    aria-label="栅格间隔"
-                    @change="handleGutterChange"
-                  >
-                    <el-radio-button :label="0">无间隔</el-radio-button>
-                    <el-radio-button :label="10">10px</el-radio-button>
-                    <el-radio-button :label="20">20px</el-radio-button>
-                    <el-radio-button :label="30">30px</el-radio-button>
-                  </el-radio-group>
-                  <el-slider v-model="gutter" :min="0" :max="100" show-input />
-                </div>
-              </el-form-item>
-              <div class="text-[16px] mb-3 pb-3 border-b">控件编辑</div>
-              <!-- <transition-group name="fade" mode="out-in"> -->
-              <div
-                v-for="(item, index) in configStore.data"
-                :key="item.key + index"
-                class="card border mb-4 p-2 rounded-lg hover:shadow-lg transition-shadow duration-300"
-                shadow="hover"
-                :class="[
-                  configStore.currentItem === index && 'current border-black border-dashed',
-                  ' my-3 rounded-lg'
-                ]"
-                @mouseover="handleMouseOver(index)"
-                @mouseleave="handleMouseLeave()"
-              >
-                <div class="header flex items-center justify-end mb-4">
-                  <span class="flex-1">{{ item.label }}</span>
-                  <el-icon
-                    class="cursor-pointer transition-transform hover:rotate-45 duration-300"
-                    @click="removeFormModelItem(index)"
-                    ><Delete
-                  /></el-icon>
-                </div>
-
-                <component
-                  :label="item.label"
-                  :prop="item.key"
-                  :rules="item.rules"
-                  :is="myComponents[item.comName]"
-                  :data="item"
-                  :model-value="outputForm[item.key]"
-                  :option-source="
-                    item.optionKey &&
-                    (item.optionKey === 'default'
-                      ? item.options
-                      : customOptions(item, outputForm[item.key]))
-                  "
-                  @update:modelValue="(value: any) => (outputForm[item.key] = value)"
-                  @custom-event="updateMethod"
-                >
-                </component>
-              </div>
-              <!-- </transition-group> -->
+                    <div class="header flex items-center justify-end mb-4">
+                      <span class="flex-1">{{ item.comName + ' ' + item.comlabel }}</span>
+                      <el-icon
+                        class="cursor-pointer transition-transform hover:rotate-45 duration-300"
+                        @click="removeFormModelItem(index)"
+                        ><Delete
+                      /></el-icon>
+                    </div>
+                    <component
+                      :label="item.label"
+                      :prop="item.key"
+                      :is="myComponentsEdit[item.comName]"
+                      :data="item"
+                      :index="index"
+                    >
+                      <!-- 
+                        :model-value="outputForm[item.key]"
+                      :option-source="
+                        item.optionKey &&
+                        (item.optionKey === 'default'
+                          ? item.options
+                          : customOptions(item, outputForm[item.key]))
+                      "
+                      @update:modelValue="(value: any) => (outputForm[item.key] = value)"
+                      @custom-event="updateMethod" 
+                    -->
+                    </component>
+                  </div>
+                  <!-- </transition-group> -->
+                </el-collapse-item>
+              </el-collapse>
             </el-form>
           </div>
         </el-card>
       </el-row>
     </el-col>
-    <el-col :span="13" class="p-1 bg-blue-300">
-      <el-card class="w-[100%]">
+    <el-col v-loading="loading" :span="pageColumns[2]" class="p-1 bg-blue-300">
+      <el-card class="w-[100%]" :body-style="{ padding: '0px' }">
         <template #header>
           <div class="card-header flex items-center justify-between">
-            <span>表单页面预览区</span>
+            <span>表单页面预览区—【{{ configStore.createData.baseInfo.comName }}】</span>
             <div>
               <el-button @click="readConfig">查看Json配置</el-button>
               <el-button @click="saveFormConfig">保存为模板</el-button>
@@ -169,25 +224,28 @@
             </div>
           </div>
         </template>
-        <div class="h-[calc(100vh-86px)] overflow-x-hidden overflow-y-auto">
+        <div class="h-[calc(100vh-86px)] overflow-x-hidden overflow-y-auto p-2">
           <el-form
             ref="outputFormRef"
-            :label-position="labelPosition"
+            :label-position="configStore.createData.baseInfo.labelPosition"
             :model="outputForm"
             label-width="auto"
-            class="demo-outputForm pl-3"
-            :size="formSize"
+            class="pl-3"
+            :size="configStore.createData.baseInfo?.formSize"
             status-icon
           >
-            <el-row :gutter="gutter">
+            <el-row :gutter="configStore.createData.baseInfo.gutter">
               <el-col
                 :span="Math.floor(24 / item.column)"
-                v-for="(item, index) in configStore.data"
+                v-for="(item, index) in configStore.createData.comList"
                 :key="`${item.key}_${index}`"
                 :class="[
-                  configStore.currentItem === index && 'current',
-                  'formItem my-3 rounded-lg'
+                  configStore.currentItem === index && ' border-blue-500  shadow-md',
+                  'border rounded-md border-dashed'
                 ]"
+                :style="`margin-bottom:${configStore.createData.baseInfo.spacing}px`"
+                @mouseover="handleMouseOver(index)"
+                @mouseleave="handleMouseLeave"
               >
                 <component
                   :is="myComponents[item.comName]"
@@ -226,37 +284,42 @@
       :size="600"
     >
       <!-- <div v-html="formatJson"></div> -->
-      <pre>{{ configStore.data }}</pre>
+      <pre>{{ configStore.createData }}</pre>
     </el-drawer>
   </el-row>
 </template>
 
 <script lang="ts" setup>
-import type { ComponentSize, FormInstance, FormRules, UploadFilled } from 'element-plus'
-import type { FormProps } from 'element-plus'
-import prettier from 'prettier/standalone'
-import parserBabel from 'prettier/parser-babel'
-import stringify from 'json-stringify-pretty-compact'
+import type { ComponentSize, FormInstance, FormRules } from 'element-plus'
+import { ElNotification } from 'element-plus'
+// import type { FormProps } from 'element-plus'
+// import prettier from 'prettier/standalone'
+// import parserBabel from 'prettier/parser-babel'
+// import stringify from 'json-stringify-pretty-compact'
 
-// import { formConfig, modelsData } from '../../store/config'
 import { fetchUserData, fetchOrgTree, fetchCityTree } from './request'
 const outputFormRef = ref<FormInstance>()
-const formSize = ref<ComponentSize>('large') // '' | 'large' | 'default' | 'small'
 import { useConfigStore } from '@/store/configStore'
 const configStore = useConfigStore()
-// configStore.formConfig = formConfig
-// configStore.modelsData = modelsData
-// const formList = ref<any>(formConfig) //表单控件列表
-// const modelList = ref<any>(modelsData) //表单控件模版库列表
-// const pagecConfigData = ref(formConfig)
-// const pagecConfigData = ref(modelsData) //表单配置数据
+
+// const modelList = ref<any>(modelsConfig) //表单控件模版库列表
+
+// const pagecConfigData = ref(modelsConfig) //表单配置数据
 const outputForm = reactive<any>([]) //用户输入的数据
 const visible = ref(false)
 const drawer = ref(false)
-const layout = ref('inline')
-const columns = ref(3)
-const gutter = ref(20)
-const labelPosition = ref<FormProps['labelPosition']>('top')
+const loading = ref(false)
+const loading_com = ref(false)
+
+// const formSize = ref<ComponentSize>('large') // '' | 'large' | 'default' | 'small'
+// const modelCurrent = ref('')
+const columns = ref(0)
+const comCellNames = ref(['1', '2'])
+const editCellNames = ref(['1', '2'])
+const pageColumns = ref([4, 8, 12])
+// const gutter = ref(20)
+// const spacing = ref(20)
+// const labelPosition = ref<FormProps['labelPosition']>('top')
 
 // 提交表单
 const submitForm = async (formEl: FormInstance | undefined) => {
@@ -271,20 +334,6 @@ const submitForm = async (formEl: FormInstance | undefined) => {
   })
 }
 
-// 添加控件
-const addFormItem = (item: any) => {
-  configStore.data.push(item)
-}
-// 添加模板
-const addFormModel = (item: any) => {
-  configStore.data = item.data
-}
-
-// 清空编辑区
-const clearFormModel = (item: any) => {
-  visible.value = false
-  configStore.data = []
-}
 // 保存编辑区
 const saveFormConfig = (item: any) => {
   ElNotification({
@@ -312,13 +361,17 @@ const reloadForm = (item: any) => {
     offset: 100,
     message: h('i', { style: 'color: teal' }, '控件库列表已更新')
   })
+  loading_com.value = true
+  setTimeout(() => {
+    loading_com.value = false
+  }, 800)
 }
 
 const formatJson = ref({})
 const readConfig = (index: number) => {
   drawer.value = !drawer.value
-  // formatJson.value = jsonStringifyPrettyCompact(JSON.stringify(configStore.data))
-  // const formatted = prettier.format(JSON.stringify(configStore.data), {
+  // formatJson.value = jsonStringifyPrettyCompact(JSON.stringify(configStore.createData))
+  // const formatted = prettier.format(JSON.stringify(configStore.createData), {
   //   parser: 'babel',
   //   plugins: [parserBabel], // 根据需要添加
   //   semi: true,
@@ -329,57 +382,92 @@ const readConfig = (index: number) => {
   // })
 
   // formatJson.value = formatted
-  // formatJson.value = `<pre>${stringify(configStore.data, { maxLength: 80 }).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>`
+  // formatJson.value = `<pre>${stringify(configStore.createData, { maxLength: 80 }).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>`
 }
-
+// 同步鼠标hover时的选中框
 const handleMouseOver = (index: number) => {
   configStore.currentItem = index
 }
 const handleMouseLeave = () => {
-  configStore.currentItem = ''
+  configStore.currentItem = null
+}
+
+// 添加模板
+const addFormModel = (item: any) => {
+  loading.value = true
+  console.log('addFormModel', item)
+
+  // item.baseInfo.comId = `${item.baseInfo.comId}_${index}`
+  setTimeout(() => {
+    const cloneData = JSON.parse(JSON.stringify(item)) // 这里需要深拷贝模板数据
+    configStore.createData = cloneData
+    configStore.createData.baseInfo.comId = `${cloneData.baseInfo.comId}_copy_1`
+  }, 0)
+  setTimeout(() => {
+    loading.value = false
+  }, 800)
+}
+
+// 清空编辑区
+const clearFormModel = (item: any) => {
+  visible.value = false
+  configStore.createData.comList = []
+}
+
+// 添加控件
+const addFormItem = (item: any) => {
+  configStore.createData.comList.push(item)
 }
 
 // 删除控件
 const removeFormModelItem = (index: number) => {
   configStore.currentItem = index
-  configStore.data.splice(index, 1)
+  configStore.createData.comList.splice(index, 1)
 }
 
-const handleLayoutChange = (val: any) => {
+// 统一布局方式
+const handleLayoutModeChange = (val: any) => {
   console.log(val)
-  configStore.data.forEach((item: any, index: number) => {
-    item.column = val === 'single' ? 1 : columns.value
+  configStore.createData.baseInfo.column = val
+  configStore.createData.comList.forEach((item: any, index: number) => {
+    item.column = val
   })
-  console.log('列数：', Math.ceil(24 / val))
 }
 
+// 页面列数
 const handleColumnsChange = (val: any) => {
-  configStore.data.forEach((item: any, index: number) => {
+  configStore.createData.comList.forEach((item: any, index: number) => {
     item.column = val
   })
   console.log('列数：', Math.ceil(24 / val))
 }
 
-const handleGutterChange = (val: any) => {
+// 控件之间的上下间距
+const handleSpacingChange = (val: any) => {
   // configStore.columns = val
+  configStore.createData.comList.forEach((item: any, index: number) => {
+    item.spacing = val
+  })
 }
 
+// 列间距
+const handleGutterChange = (val: any) => {
+  configStore.createData.baseInfo.gutter = val
+}
+
+// 标签对齐方式
 const handleLabelPositionChange = (val: any) => {
   console.log(val)
-  // configStore.labelPosition = val
-  configStore.data.forEach((item: any, index: number) => {
-    item.labelPosition = val
-  })
+  configStore.createData.baseInfo.labelPosition = val
 }
 
-const handleVisibleChange = (val: any) => {
+// 控件大小
+const handleFormSizeChange = (val: any) => {
   console.log(val)
-  // configStore.visible = val
-  configStore.data.forEach((item: any, index: number) => {
-    item.visible = val
-  })
+  configStore.createData.baseInfo.formSize = val
 }
 
+// 重置预览区表单
 const resetForm = (formEl: FormInstance | undefined) => {
   if (!formEl) return
   formEl.resetFields()
@@ -391,18 +479,50 @@ const objMap: any = {
   array: [],
   object: {}
 }
+const comMap: any = {
+  input: 'el-input',
+  select: 'el-select',
+  radio: 'el-radio',
+  checkbox: 'el-checkbox',
+  date: 'el-date-picker',
+  upload: 'el-upload',
+  switch: 'el-switch',
+  slider: 'el-slider',
+  rate: 'el-rate',
+  color: 'el-color-picker'
+}
 // const componentFiles: any = import.meta.glob('./components/*.vue')
-const componentFiles: Record<string, () => Promise<any>> = import.meta.glob('./components/*.vue')
-
+console.log('import.meta',import.meta);
+// 动态加载表单组件库
+const componentFiles: Record<string, () => Promise<any>> = import.meta.glob(
+  './formComponents/*.vue'
+)
 const components = () => {
   const obj: any = {}
   configStore.formConfig.forEach((item: any) => {
-    obj[item.comName] = defineAsyncComponent(componentFiles[`./components/${item.comName}.vue`])
+    obj[item.comName] = defineAsyncComponent(componentFiles[`./formComponents/${item.comName}.vue`])
     outputForm[item.key] = objMap[item.dataType] // 数据初始化
   })
   return obj
 }
 const myComponents = components()
+
+// 动态加载编辑器组件库
+const componentEditFiles: Record<string, () => Promise<any>> = import.meta.glob(
+  './editComponents/*.vue'
+)
+const componentsEdit = () => {
+  const obj: any = {}
+  configStore.editConfig.forEach((item: any) => {
+    obj[item.comName] = defineAsyncComponent(
+      componentEditFiles[`./editComponents/${item.comName}.vue`]
+    )
+    // outputForm[item.key] = objMap[item.dataType] // 数据初始化
+  })
+  return obj
+}
+const myComponentsEdit = componentsEdit()
+console.log('myComponentsEdit', myComponentsEdit)
 
 // function resolveComponent(name) {
 //   return components[name]
@@ -511,7 +631,7 @@ const getCityTree = async () => {
 }
 
 onMounted(() => {
-  document.title = "动态表单引擎"
+  document.title = '动态表单引擎'
   // getUserData()
   getOrgTree()
   getCityTree()
@@ -519,15 +639,6 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
-.formItem {
-  // padding: 10px;
-  // background-color: #f1f1f1;
-  border: 1px dashed transparent;
-
-  &.current {
-    border: 1px dashed #000;
-  }
-}
 .dropbg {
   position: relative;
   background: repeating-linear-gradient(

@@ -1,5 +1,5 @@
 <template>
-  <el-form-item :label="`${data.label}(${data.comName})`" :rules="data.rules" :prop="data.key">
+  <el-form-item :label="`${data.label}`" :rules="data.rules" :prop="data.key">
     <el-cascader
       v-model="internalValue"
       :options="optionSource"

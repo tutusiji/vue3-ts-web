@@ -9,13 +9,14 @@
     "isolatedModules": true, // 要求所有文件都是 ES Module 模块。
     "noEmit": true, // 不输出文件,即编译后不会生成任何js文件
     "jsx": "preserve", // 保留原始的 JSX 代码，不进行编译
-    "strict": true, // 开启所有严格的类型检查
+    "strict": false, // 开启所有严格的类型检查
     "esModuleInterop": true, // 兼容ES模块, 允许使用 import 引入使用 export = 导出的内容
     "allowSyntheticDefaultImports": true, // 配合esModuleInterop使用
     "allowJs": true, //允许使用js
-    "baseUrl": ".", //查询的基础路径
+    "baseUrl": "./", //查询的基础路径
     "paths": {
-      "@/*": ["src"],
+      // "@/*": ["src"],
+      "@/*": ["src/*"],
       "Assets/*": ["src/assets/*"],
       "Components/*": ["src/components/*"],
       "Utils/*": ["src/utils/*"]

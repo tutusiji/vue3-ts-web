@@ -1,7 +1,7 @@
 <template>
   <el-form-item
     v-if="optionSource?.length"
-    :label="`${data.label}(${data.comName})`"
+    :label="`${data.label}`"
     :rules="data.rules"
     :prop="data.key"
   >
