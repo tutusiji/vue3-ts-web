@@ -244,7 +244,8 @@ export default defineComponent({
 }
 
 .list-move {
-  transition: transform 3.5s ease;
+  z-index: 1000;
+  transition: transform 1.5s ease;
 }
 
 .list-enter-active,
