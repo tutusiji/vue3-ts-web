@@ -1,18 +1,18 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import HomePage from '../views/HomePage/Index.vue'
+import DynamicForm from '../views/DynamicForm/Index.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
       path: '/',
-      name: 'home',
-      component: HomePage
+      name: 'DynamicForm',
+      component: DynamicForm
     },
     {
-      path: '/about',
-      name: 'about',
-      component: () => import('../views/AboutView.vue')
+      path: '/drag',
+      name: 'drag',
+      component: () => import('../views/DragPage.vue')
     }
   ]
 })
