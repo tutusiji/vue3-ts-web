@@ -13,6 +13,11 @@ const router = createRouter({
       path: '/drag',
       name: 'drag',
       component: () => import('../views/DragPage.vue')
+    },
+    {
+      path: '/select',
+      name: 'CascaderSelect',
+      component: () => import('../views/CascaderSelect.vue')
     }
   ]
 })

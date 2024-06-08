@@ -495,12 +495,12 @@ const comMap: any = {
 console.log('import.meta',import.meta);
 // 动态加载表单组件库
 const componentFiles: Record<string, () => Promise<any>> = import.meta.glob(
-  './formComponents/*.vue'
+  './FormComponents/*.vue'
 )
 const components = () => {
   const obj: any = {}
   configStore.formConfig.forEach((item: any) => {
-    obj[item.comName] = defineAsyncComponent(componentFiles[`./formComponents/${item.comName}.vue`])
+    obj[item.comName] = defineAsyncComponent(componentFiles[`./FormComponents/${item.comName}.vue`])
     outputForm[item.key] = objMap[item.dataType] // 数据初始化
   })
   return obj
@@ -509,13 +509,13 @@ const myComponents = components()
 
 // 动态加载编辑器组件库
 const componentEditFiles: Record<string, () => Promise<any>> = import.meta.glob(
-  './editComponents/*.vue'
+  './EditComponents/*.vue'
 )
 const componentsEdit = () => {
   const obj: any = {}
   configStore.editConfig.forEach((item: any) => {
     obj[item.comName] = defineAsyncComponent(
-      componentEditFiles[`./editComponents/${item.comName}.vue`]
+      componentEditFiles[`./EditComponents/${item.comName}.vue`]
     )
     // outputForm[item.key] = objMap[item.dataType] // 数据初始化
   })

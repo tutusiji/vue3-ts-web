@@ -35,8 +35,13 @@
           <el-form-item :label="field.label">
             <component
               :is="field.component"
+              :init-values="field.initValues"
+              :style="{
+                width: field.width
+              }"
               v-model="form[field.model]"
               :placeholder="'Enter ' + field.label"
+              :options="field.options"
             ></component>
           </el-form-item>
         </li>
@@ -49,13 +54,16 @@
 import { defineComponent, ref } from 'vue'
 import { ElInput, ElSelect, ElDatePicker } from 'element-plus'
 import { throttle, debounce } from 'lodash'
+import CascaderSelect from './DynamicForm/FormComponents/CascaderSelect.vue'
+import { cascaderOptions } from './mock-data'
 
 export default defineComponent({
   name: 'DraggableForm',
   components: {
     ElInput,
     ElSelect,
-    ElDatePicker
+    ElDatePicker,
+    CascaderSelect
   },
   setup() {
     const form = ref({
@@ -71,7 +79,15 @@ export default defineComponent({
       { id: 5, label: '开始日期', model: 'startDate', component: 'ElDatePicker' },
       { id: 6, label: '电话号码', model: 'phoneNumber', component: 'ElInput' },
       { id: 7, label: '结束日期', model: 'endDate', component: 'ElDatePicker' },
-      { id: 8, label: '城市', model: 'city', component: 'ElInput' },
+      {
+        id: 8,
+        label: '城市',
+        model: 'city',
+        component: 'CascaderSelect',
+        width: '100%',
+        initValues: ['zhejiang', 'hangzhou', 'xihu'],
+        options: cascaderOptions
+      },
       { id: 9, label: '入学日期', model: 'enrollmentDate', component: 'ElDatePicker' },
       { id: 10, label: '国家', model: 'country', component: 'ElInput' },
       { id: 11, label: '毕业日期', model: 'graduationDate', component: 'ElDatePicker' },
@@ -141,9 +157,9 @@ export default defineComponent({
     // 只在拖拽结束时清理状态
     const clearStates = () => {
       // setTimeout(() => {
-        throttledDragOver.cancel()
-        dropIndex.value = null
-        draggingIndex.value = null
+      throttledDragOver.cancel()
+      dropIndex.value = null
+      draggingIndex.value = null
       // },3000)
     }
 
@@ -172,7 +188,8 @@ export default defineComponent({
       labelPosition,
       handleLabelPositionChange,
       handleColumnsChange,
-      column
+      column,
+      cascaderOptions
     }
   }
 })
@@ -244,12 +261,12 @@ export default defineComponent({
 }
 
 .list-move {
-  z-index: 1000;
-  transition: transform 1.5s ease;
+  transition: transform 0.8s ease;
 }
 
 .list-enter-active,
 .list-leave-active {
+  z-index: 1000;
   transition: all 0.5s ease;
 }
 
