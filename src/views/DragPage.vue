@@ -85,13 +85,21 @@ export default defineComponent({
         model: 'city',
         component: 'CascaderSelect',
         width: '100%',
-        initValues: ['zhejiang', 'hangzhou', 'xihu'],
+        initValues: ['zhejiang', 'hangzhou', 'yuhang', 'jiangbei'],
         options: cascaderOptions
       },
       { id: 9, label: '入学日期', model: 'enrollmentDate', component: 'ElDatePicker' },
       { id: 10, label: '国家', model: 'country', component: 'ElInput' },
       { id: 11, label: '毕业日期', model: 'graduationDate', component: 'ElDatePicker' },
-      { id: 12, label: '地址', model: 'address', component: 'ElInput' },
+      {
+        id: 12,
+        label: '地址',
+        model: 'address',
+        component: 'CascaderSelect',
+        width: '100%',
+        initValues: ['zhejiang', 'hangzhou'],
+        options: cascaderOptions
+      },
       { id: 13, label: '预约日期', model: 'appointmentDate', component: 'ElDatePicker' },
       { id: 14, label: '邮政编码', model: 'zipCode', component: 'ElInput' },
       { id: 15, label: '雇佣日期', model: 'hireDate', component: 'ElDatePicker' },

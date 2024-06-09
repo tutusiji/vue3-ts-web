@@ -14,7 +14,7 @@ export const useConfigStore = defineStore('configer', {
         comId: 'newDemo_0',
         formSize: 'large',
         labelPosition: 'top',
-        column: 1,
+        column: 2,
         gutter: 20,
         spacing: 20
       },
@@ -23,7 +23,7 @@ export const useConfigStore = defineStore('configer', {
           label: '标题1111',
           key: 'name',
           remark: '备注描述777',
-          column: 1,
+          column: 2,
           gutter: 20,
           length: 20,
           comName: 'TextInput',
@@ -38,7 +38,7 @@ export const useConfigStore = defineStore('configer', {
         {
           label: '基础下拉2222',
           key: 'level',
-          column: 3,
+          column: 2,
           comName: 'BasicSelect',
           comlabel: '下拉框-基础',
           comType: 'select',
@@ -64,7 +64,8 @@ export const useConfigStore = defineStore('configer', {
     },
     modelsConfig: modelsConfig, // 模板数据
     formConfig: formConfig, // 表单组件库
-    editConfig: editConfig // 编辑态组件库
+    editConfig: editConfig, // 编辑态组件库
+    currentEditConfigItem: null // 当前编辑组件 
   }),
   // 状态数据计算属性 相当于computed
   getters: {

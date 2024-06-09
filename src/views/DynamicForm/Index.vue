@@ -42,7 +42,73 @@
         </div>
       </el-card>
     </el-col>
-    <el-col v-loading="loading" :span="pageColumns[1]" class="p-1 bg-violet-300">
+    <el-col v-loading="loading" :span="pageColumns[1]" class="p-1 bg-blue-300">
+      <el-card class="w-[100%]" :body-style="{ padding: '0px' }">
+        <template #header>
+          <div class="card-header flex items-center justify-between">
+            <span>表单页面预览区—【{{ configStore.createData.baseInfo.comName }}】</span>
+            <div>
+              <el-button @click="readConfig">查看Json配置</el-button>
+              <el-button @click="saveFormConfig">保存为模板</el-button>
+              <el-button @click="saveFormConfig">分享</el-button>
+              <el-button type="primary" @click="saveFormConfig">保存</el-button>
+              <el-button type="primary" @click="previewForm">预览</el-button>
+            </div>
+          </div>
+        </template>
+        <div class="formbg overflow-x-hidden overflow-y-auto">
+          <div class="formContent rounded-lg shadow-lg">
+            <el-form
+              ref="outputFormRef"
+              :label-position="configStore.createData.baseInfo.labelPosition"
+              :model="outputForm"
+              label-width="auto"
+              :size="configStore.createData.baseInfo?.formSize"
+              status-icon
+            >
+              <el-row :gutter="configStore.createData.baseInfo.gutter">
+                <el-col
+                  :span="Math.floor(24 / item.column)"
+                  v-for="(item, index) in configStore.createData.comList"
+                  :key="`${item.key}_${index}`"
+                  :class="[
+                    configStore.currentItem === index && ' border-blue-500',
+                    'formItems group relative border rounded-md border-dashed hover:translate-y-[-3px] hover:shadow-lg transition-all'
+                  ]"
+                  :style="`margin-bottom:${configStore.createData.baseInfo.spacing}px`"
+                  @click="handleFormItemClick(item, index)"
+                >
+                  <el-icon
+                    class="deleteBtn cursor-pointer transition-transform hover:rotate-45 duration-300 group-hover:block"
+                    @click="removeFormModelItem(index)"
+                    ><Delete
+                  /></el-icon>
+                  <component
+                    :is="myComponents[item.comName]"
+                    :data="item"
+                    :model-value="outputForm[item.key]"
+                    :option-source="
+                      item.optionKey &&
+                      (item.optionKey === 'default'
+                        ? item.options
+                        : customOptions(item, outputForm[item.key]))
+                    "
+                    @update:modelValue="(value: any) => (outputForm[item.key] = value)"
+                    @custom-event="updateMethod"
+                  >
+                  </component>
+                </el-col>
+              </el-row>
+              <el-form-item>
+                <el-button type="primary" @click="submitForm(outputFormRef)"> Create </el-button>
+                <el-button @click="resetForm(outputFormRef)">Reset</el-button>
+              </el-form-item>
+            </el-form>
+          </div>
+        </div>
+      </el-card>
+    </el-col>
+    <el-col v-loading="loading" :span="pageColumns[2]" class="p-1 bg-violet-300">
       <!-- <el-row class="bg-[#fff] mb-3">
         <el-card class="dropbg h-[200px] w-[100%] flex items-center justify-center">
           <p class="p-3">拖拽组件到这里</p>
@@ -71,7 +137,7 @@
             </div>
           </template>
           <div class="h-[calc(100vh-86px)] overflow-x-hidden overflow-y-auto p-2">
-            <el-form label-position="right" label-width="80" status-icon>
+            <el-form label-position="right" label-width="80" status-icon size="small">
               <el-collapse v-model="editCellNames">
                 <el-collapse-item title="基础信息配置" name="1">
                   <el-form-item label="表单名称">
@@ -164,42 +230,21 @@
                 <el-collapse-item title="控件编辑" name="2">
                   <!-- <transition-group name="fade" mode="out-in"> -->
                   <div
-                    v-for="(item, index) in configStore.createData.comList"
-                    :key="item.key + index"
-                    :class="[
-                      configStore.currentItem === index &&
-                        ' border-violet-400 border-dashed shadow-md',
-                      ' border mb-4 p-2 rounded-md'
-                    ]"
-                    @mouseover="handleMouseOver(index)"
-                    @mouseleave="handleMouseLeave"
+                    v-if="configStore.currentEditConfigItem"
+                    class="border mb-4 p-2 rounded-md border-violet-400 border-dashed shadow-md"
                   >
                     <div class="header flex items-center justify-end mb-4">
-                      <span class="flex-1">{{ item.comName + ' ' + item.comlabel }}</span>
-                      <el-icon
-                        class="cursor-pointer transition-transform hover:rotate-45 duration-300"
-                        @click="removeFormModelItem(index)"
-                        ><Delete
-                      /></el-icon>
+                      <span class="flex-1">{{
+                        configStore.currentEditConfigItem.comName +
+                        ' ' +
+                        configStore.currentEditConfigItem.comlabel
+                      }}</span>
                     </div>
                     <component
-                      :label="item.label"
-                      :prop="item.key"
-                      :is="myComponentsEdit[item.comName]"
-                      :data="item"
-                      :index="index"
+                      :is="myComponentsEdit[configStore.currentEditConfigItem.comName]"
+                      :data="configStore.currentEditConfigItem"
+                      :index="configStore.currentItem"
                     >
-                      <!-- 
-                        :model-value="outputForm[item.key]"
-                      :option-source="
-                        item.optionKey &&
-                        (item.optionKey === 'default'
-                          ? item.options
-                          : customOptions(item, outputForm[item.key]))
-                      "
-                      @update:modelValue="(value: any) => (outputForm[item.key] = value)"
-                      @custom-event="updateMethod" 
-                    -->
                     </component>
                   </div>
                   <!-- </transition-group> -->
@@ -210,67 +255,7 @@
         </el-card>
       </el-row>
     </el-col>
-    <el-col v-loading="loading" :span="pageColumns[2]" class="p-1 bg-blue-300">
-      <el-card class="w-[100%]" :body-style="{ padding: '0px' }">
-        <template #header>
-          <div class="card-header flex items-center justify-between">
-            <span>表单页面预览区—【{{ configStore.createData.baseInfo.comName }}】</span>
-            <div>
-              <el-button @click="readConfig">查看Json配置</el-button>
-              <el-button @click="saveFormConfig">保存为模板</el-button>
-              <el-button @click="saveFormConfig">分享</el-button>
-              <el-button type="primary" @click="saveFormConfig">保存</el-button>
-              <el-button type="primary" @click="previewForm">预览</el-button>
-            </div>
-          </div>
-        </template>
-        <div class="h-[calc(100vh-86px)] overflow-x-hidden overflow-y-auto p-2">
-          <el-form
-            ref="outputFormRef"
-            :label-position="configStore.createData.baseInfo.labelPosition"
-            :model="outputForm"
-            label-width="auto"
-            class="pl-3"
-            :size="configStore.createData.baseInfo?.formSize"
-            status-icon
-          >
-            <el-row :gutter="configStore.createData.baseInfo.gutter">
-              <el-col
-                :span="Math.floor(24 / item.column)"
-                v-for="(item, index) in configStore.createData.comList"
-                :key="`${item.key}_${index}`"
-                :class="[
-                  configStore.currentItem === index && ' border-blue-500  shadow-md',
-                  'border rounded-md border-dashed'
-                ]"
-                :style="`margin-bottom:${configStore.createData.baseInfo.spacing}px`"
-                @mouseover="handleMouseOver(index)"
-                @mouseleave="handleMouseLeave"
-              >
-                <component
-                  :is="myComponents[item.comName]"
-                  :data="item"
-                  :model-value="outputForm[item.key]"
-                  :option-source="
-                    item.optionKey &&
-                    (item.optionKey === 'default'
-                      ? item.options
-                      : customOptions(item, outputForm[item.key]))
-                  "
-                  @update:modelValue="(value: any) => (outputForm[item.key] = value)"
-                  @custom-event="updateMethod"
-                >
-                </component>
-              </el-col>
-            </el-row>
-            <el-form-item>
-              <el-button type="primary" @click="submitForm(outputFormRef)"> Create </el-button>
-              <el-button @click="resetForm(outputFormRef)">Reset</el-button>
-            </el-form-item>
-          </el-form>
-        </div>
-      </el-card>
-    </el-col>
+
     <!-- ltr  rtl ttb btt -->
     <el-drawer
       v-model="drawer"
@@ -315,8 +300,8 @@ const loading_com = ref(false)
 // const modelCurrent = ref('')
 const columns = ref(0)
 const comCellNames = ref(['1', '2'])
-const editCellNames = ref(['1', '2'])
-const pageColumns = ref([4, 8, 12])
+const editCellNames = ref(['2'])
+const pageColumns = ref([4, 14, 6])
 // const gutter = ref(20)
 // const spacing = ref(20)
 // const labelPosition = ref<FormProps['labelPosition']>('top')
@@ -384,12 +369,11 @@ const readConfig = (index: number) => {
   // formatJson.value = formatted
   // formatJson.value = `<pre>${stringify(configStore.createData, { maxLength: 80 }).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>`
 }
-// 同步鼠标hover时的选中框
-const handleMouseOver = (index: number) => {
+
+// 同步当前选中项
+const handleFormItemClick = (item: any, index: number) => {
+  configStore.currentEditConfigItem = item
   configStore.currentItem = index
-}
-const handleMouseLeave = () => {
-  configStore.currentItem = null
 }
 
 // 添加模板
@@ -412,6 +396,7 @@ const addFormModel = (item: any) => {
 const clearFormModel = (item: any) => {
   visible.value = false
   configStore.createData.comList = []
+  configStore.currentEditConfigItem = null
 }
 
 // 添加控件
@@ -492,7 +477,7 @@ const comMap: any = {
   color: 'el-color-picker'
 }
 // const componentFiles: any = import.meta.glob('./components/*.vue')
-console.log('import.meta',import.meta);
+console.log('import.meta', import.meta)
 // 动态加载表单组件库
 const componentFiles: Record<string, () => Promise<any>> = import.meta.glob(
   './FormComponents/*.vue'
@@ -635,6 +620,7 @@ onMounted(() => {
   // getUserData()
   getOrgTree()
   getCityTree()
+  configStore.currentEditConfigItem = configStore.createData.comList[0]
 })
 </script>
 
@@ -654,6 +640,76 @@ onMounted(() => {
     background-color: rgba($color: #fff, $alpha: 1);
     border-radius: 5px;
   }
+}
+.formbg {
+  position: relative;
+  height: calc(100vh - 80px);
+  padding: 30px 60px;
+  @extend .checkered;
+  .formContent {
+    position: relative;
+    background-color: #fff;
+    min-height: calc(80vh - 0px);
+    padding: 30px 50px;
+  }
+  &:before {
+    // content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    @extend .checkered;
+    opacity: 0.05;
+    pointer-events: none;
+  }
+}
+.deleteBtn {
+  position: absolute;
+  right: 14px;
+  top: 6px;
+  display: none;
+}
+
+$primary-color: #f7f7f7;
+.checkered {
+  background-size: 50px 50px;
+  background-image: gradient(
+      linear,
+      0 0,
+      100% 100%,
+      color-stop(0.25, $primary-color),
+      color-stop(0.25, transparent),
+      to(transparent)
+    ),
+    gradient(
+      linear,
+      0 100%,
+      100% 0,
+      color-stop(0.25, $primary-color),
+      color-stop(0.25, transparent),
+      to(transparent)
+    ),
+    gradient(
+      linear,
+      0 0,
+      100% 100%,
+      color-stop(0.75, transparent),
+      color-stop(0.75, $primary-color)
+    ),
+    gradient(
+      linear,
+      0 100%,
+      100% 0,
+      color-stop(0.75, transparent),
+      color-stop(0.75, $primary-color)
+    );
+  background-image: linear-gradient(45deg, $primary-color 25%, transparent 25%, transparent),
+    linear-gradient(-45deg, $primary-color 25%, transparent 25%, transparent),
+    linear-gradient(45deg, transparent 75%, $primary-color 75%),
+    linear-gradient(-45deg, transparent 75%, $primary-color 75%);
 }
 </style>
 <style>

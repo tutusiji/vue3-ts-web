@@ -1,6 +1,7 @@
 // import './assets/style.css'
 import './assets/tailwind.css'
 import 'vue-global-api'
+import 'element-plus/dist/index.css'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
