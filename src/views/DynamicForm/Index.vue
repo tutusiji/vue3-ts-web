@@ -66,6 +66,7 @@
               :size="configStore.createData.baseInfo?.formSize"
               status-icon
             >
+              <!-- <transition-group name="list" tag="div" class="draggable-list"> -->
               <el-row :gutter="configStore.createData.baseInfo.gutter">
                 <el-col
                   :span="Math.floor(24 / item.column)"
@@ -73,8 +74,16 @@
                   :key="`${item.key}_${index}`"
                   :class="[
                     configStore.currentItem === index && ' border-blue-500',
+                    draggingIndex === index && 'dragging',
+                    dropIndex === index && 'drop-over',
                     'formItems group relative border rounded-md border-dashed hover:translate-y-[-3px] hover:shadow-lg transition-all'
                   ]"
+                  draggable="true"
+                  @dragstart="dragStart(index)"
+                  @dragover.prevent="dragOver($event, index)"
+                  @dragleave="dragLeave(index)"
+                  @drop="drop(index)"
+                  @dragend="dragEnd"
                   :style="`margin-bottom:${configStore.createData.baseInfo.spacing}px`"
                   @click="handleFormItemClick(item, index)"
                 >
@@ -99,6 +108,7 @@
                   </component>
                 </el-col>
               </el-row>
+              <!-- </transition-group> -->
               <el-form-item>
                 <el-button type="primary" @click="submitForm(outputFormRef)"> Create </el-button>
                 <el-button @click="resetForm(outputFormRef)">Reset</el-button>
@@ -277,6 +287,7 @@
 <script lang="ts" setup>
 import type { ComponentSize, FormInstance, FormRules } from 'element-plus'
 import { ElNotification } from 'element-plus'
+import { throttle, debounce } from 'lodash'
 // import type { FormProps } from 'element-plus'
 // import prettier from 'prettier/standalone'
 // import parserBabel from 'prettier/parser-babel'
@@ -295,7 +306,8 @@ const visible = ref(false)
 const drawer = ref(false)
 const loading = ref(false)
 const loading_com = ref(false)
-
+const draggingIndex = ref<number | null>(null) // 正在拖拽的元素的索引
+const dropIndex = ref<number | null>(null) // 拖拽元素释放时所在的索引
 // const formSize = ref<ComponentSize>('large') // '' | 'large' | 'default' | 'small'
 // const modelCurrent = ref('')
 const columns = ref(0)
@@ -375,6 +387,62 @@ const handleFormItemClick = (item: any, index: number) => {
   configStore.currentEditConfigItem = item
   configStore.currentItem = index
 }
+
+function dragStart(index: number) {
+  draggingIndex.value = index
+}
+
+const dragOver = (event, index) => {
+  if (dropIndex.value !== index) {
+    throttledDragOver(event, index)
+  }
+}
+
+function drop(targetIndex: number) {
+  if (draggingIndex.value !== null && draggingIndex.value !== targetIndex) {
+    const itemToMove = configStore.createData.comList.splice(draggingIndex.value, 1)[0]
+    if (targetIndex > draggingIndex.value) {
+      targetIndex -= 1 // 因为已经从数组中移除了元素，所以索引减一
+    }
+    configStore.createData.comList.splice(targetIndex, 0, itemToMove)
+  }
+  // draggingIndex.value = null
+  // dropIndex.value = null
+  clearStates()
+}
+
+// 只在拖拽结束时清理状态
+const clearStates = () => {
+  // setTimeout(() => {
+  throttledDragOver.cancel()
+  dropIndex.value = null
+  draggingIndex.value = null
+  // },3000)
+}
+
+function dragLeave(index: number) {
+  // console.log('dragLeave', index)
+  if (dropIndex.value === index) {
+    // dropIndex.value = null
+  }
+}
+
+function dragEnd() {
+  console.log('dragEnd')
+  clearStates()
+}
+const throttledDragOver = throttle((event, index) => {
+  // event.preventDefault()
+  // const targetRect = event.target.getBoundingClientRect()
+  // const middleY = targetRect.top + targetRect.height / 2
+
+  // if (event.clientY < middleY) {
+  //   dropIndex.value = index
+  // } else {
+  //   dropIndex.value = index + 1
+  // }
+  dropIndex.value = index
+}, 300)
 
 // 添加模板
 const addFormModel = (item: any) => {
@@ -652,18 +720,9 @@ onMounted(() => {
     min-height: calc(80vh - 0px);
     padding: 30px 50px;
   }
-  &:before {
-    // content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    width: 100%;
-    height: 100%;
-    @extend .checkered;
-    opacity: 0.05;
-    pointer-events: none;
+  .formItems {
+    cursor: move;
+    transition: transform 0.5s ease;
   }
 }
 .deleteBtn {
@@ -710,6 +769,70 @@ $primary-color: #f7f7f7;
     linear-gradient(-45deg, $primary-color 25%, transparent 25%, transparent),
     linear-gradient(45deg, transparent 75%, $primary-color 75%),
     linear-gradient(-45deg, transparent 75%, $primary-color 75%);
+}
+
+.dragging {
+  z-index: 1000;
+  opacity: 0.5;
+  border: 2px solid black;
+}
+
+.drop-over:not(.dragging) {
+  border: 2px dashed #f00;
+  &::before {
+    content: '';
+    position: absolute;
+    border-radius: 5px;
+    background-color: #f00;
+    animation: ani_flicker 0.8s 0s infinite;
+    top: 0;
+    left: -10px;
+    width: 5px;
+    height: 100%;
+  }
+  &.focus_left,
+  &.focus_right {
+    &::before {
+      top: 0;
+      left: -10px;
+      width: 5px;
+      height: 100%;
+    }
+  }
+  &.focus_top {
+    &::before {
+      top: -10px;
+      left: 0;
+      width: 100%;
+      height: 5px;
+    }
+  }
+}
+@keyframes ani_flicker {
+  0% {
+    opacity: 0.1;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.1;
+  }
+}
+
+.list-move {
+  transition: transform 0.8s ease;
+}
+
+.list-enter-active,
+.list-leave-active {
+  z-index: 1000;
+  transition: all 0.5s ease;
+}
+
+.list-enter, .list-leave-to /* .list-leave-active in <2.1.8 */ {
+  transform: translateY(20px);
+  opacity: 0;
 }
 </style>
 <style>
