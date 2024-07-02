@@ -17,7 +17,7 @@ const router = createRouter({
     {
       path: '/select',
       name: 'CascaderSelect',
-      component: () => import('../views/CascaderSelect.vue')
+      component: () => import('../views/DynamicForm/formComponents/CascaderSelect.vue')
     }
   ]
 })
