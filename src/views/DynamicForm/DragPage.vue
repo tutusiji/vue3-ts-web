@@ -54,8 +54,8 @@
 import { defineComponent, ref } from 'vue'
 import { ElInput, ElSelect, ElDatePicker } from 'element-plus'
 import { throttle, debounce } from 'lodash'
-import CascaderSelect from './DynamicForm/FormComponents/CascaderSelect.vue'
-import { cascaderOptions } from './mock-data'
+import CascaderSelect from './FormComponents/CascaderSelect.vue'
+import { cascaderOptions } from '../mock-data'
 
 export default defineComponent({
   name: 'DraggableForm',

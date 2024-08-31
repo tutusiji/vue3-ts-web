@@ -47,6 +47,8 @@
     "eslint-plugin-vue": "^9.25.0",
     "globals": "^15.0.0",
     "husky": "8.0.3",
+    "iconfont": "^0.4.1",
+    "iconfont-spanner": "^2.4.0",
     "jsdoc-babel": "^0.5.0",
     "lint-staged": "^15.2.2",
     "memont": "^0.0.0-underconstruction",
