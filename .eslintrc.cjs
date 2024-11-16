@@ -41,6 +41,7 @@ module.exports = {
     // TypeScript/ESLint 推荐的规则
     '@typescript-eslint/no-unused-vars': 'warn', // 不允许存在未使用的 TypeScript 变量
     '@typescript-eslint/explicit-module-boundary-types': 'off', // 允许不显式指定导出函数的返回类型
-    '@typescript-eslint/no-explicit-any': 'off' // 允许使用 any 类型
+    '@typescript-eslint/no-explicit-any': 'off', // 允许使用 any 类型
+    'vue/multi-word-component-names': 0
   }
 }
