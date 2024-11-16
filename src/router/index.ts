@@ -18,6 +18,11 @@ const router = createRouter({
       path: '/select',
       name: 'CascaderSelect',
       component: () => import('../views/DynamicForm/formComponents/CascaderSelect.vue')
+    },
+    {
+      path: '/spider',
+      name: 'SpiderNodes',
+      component: () => import('../views/SpiderNodes/Index.vue')
     }
   ]
 })
