@@ -57,11 +57,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import zhCN from '@/i18n/zh-CN'
-import zhTW from '@/i18n/zh-TW'
-import enUS from '@/i18n/en-US'
-import jaJP from '@/i18n/ja-JP'
-import thTH from '@/i18n/th-TH'
+import zhCN from '@/i18n/zh-CN.json'
+import zhTW from '@/i18n/zh-TW.json'
+import enUS from '@/i18n/en-US.json'
+import jaJP from '@/i18n/ja-JP.json'
+import thTH from '@/i18n/th-TH.json'
 import { aiTranslate } from '@/utils/ai'
 
 type Row = { key: string; zh?: string; zhTW?: string; en?: string; ja?: string; th?: string }
