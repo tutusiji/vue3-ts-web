@@ -7,17 +7,18 @@
           <el-option label="全部" value="all" />
           <el-option v-for="t in types" :key="t" :label="t" :value="t" />
         </el-select>
-        <el-button @click="addLanguage" plain>{{ $t('i18n.addLang') }}</el-button>
+        <el-button @click="openLangManager" plain>管理语言</el-button>
         <el-button type="primary" @click="openAddDialog">{{ $t('i18n.add') }}</el-button>
       </div>
     </div>
     <el-table :data="paged" style="width:100%">
       <el-table-column prop="key" label="Key" width="260" />
-      <el-table-column prop="zh" label="中文" />
-      <el-table-column prop="zhTW" label="繁體" />
-      <el-table-column prop="en" label="English" />
-      <el-table-column prop="ja" label="日本語" />
-      <el-table-column prop="th" label="ไทย" />
+      <el-table-column
+        v-for="lang in languages"
+        :key="lang.field"
+        :prop="lang.field"
+        :label="lang.name"
+      />
       <el-table-column label="操作" width="200">
         <template #default="scope">
           <el-button size="small" @click="editItem(scope.row)">{{ $t('i18n.edit') }}</el-button>
@@ -40,16 +41,61 @@
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="640px">
       <el-form :model="form" label-width="120px" label-position="left" class="compact-form">
         <el-form-item label="Key"><el-input v-model="form.key" style="max-width:360px" /></el-form-item>
-        <el-form-item label="中文"><el-input v-model="form.zh" style="max-width:360px" /></el-form-item>
-        <el-form-item label="繁體"><el-input v-model="form.zhTW" style="max-width:360px" /></el-form-item>
-        <el-form-item label="English"><el-input v-model="form.en" style="max-width:360px" /></el-form-item>
-        <el-form-item label="日本語"><el-input v-model="form.ja" style="max-width:360px" /></el-form-item>
-        <el-form-item label="ไทย"><el-input v-model="form.th" style="max-width:360px" /></el-form-item>
+        <template v-for="lang in languages" :key="'form-'+lang.field">
+          <el-form-item :label="lang.name">
+            <el-input v-model="form[lang.field]" style="max-width:360px" />
+          </el-form-item>
+        </template>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible=false">{{ $t('i18n.cancel') }}</el-button>
         <el-button @click="aiFill" :loading="aiLoading" plain>一键AI生成</el-button>
         <el-button type="primary" @click="saveItem">{{ $t('i18n.save') }}</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 语言管理弹窗 -->
+    <el-dialog v-model="langDialogVisible" title="语言管理" width="720px">
+      <div class="lang-actions">
+        <el-button type="primary" @click="openLangEdit()">新增语言</el-button>
+      </div>
+      <el-table :data="languages" size="small" style="width:100%; margin-top:8px;">
+        <el-table-column prop="name" label="名称" width="160" />
+        <el-table-column prop="code" label="代码" width="160" />
+        <el-table-column prop="field" label="字段" width="160" />
+        <el-table-column label="内置" width="100">
+          <template #default="scope">
+            <el-tag size="small" :type="scope.row.builtin ? 'info' : 'success'">{{ scope.row.builtin ? '是' : '否' }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="180">
+          <template #default="scope">
+            <el-button size="small" @click="openLangEdit(scope.row, scope.$index)">编辑</el-button>
+            <el-button size="small" type="danger" :disabled="scope.row.builtin" @click="removeLang(scope.$index)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <template #footer>
+        <el-button @click="langDialogVisible=false">关闭</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 语言新增/编辑弹窗 -->
+    <el-dialog v-model="langEditVisible" :title="langEditIndex===-1? '新增语言' : '编辑语言'" width="560px">
+      <el-form :model="langForm" label-width="120px" label-position="left" class="compact-form">
+        <el-form-item label="名称">
+          <el-input v-model="langForm.name" placeholder="例如 Français" />
+        </el-form-item>
+        <el-form-item label="代码">
+          <el-input v-model="langForm.code" placeholder="例如 fr-FR" :disabled="langForm.builtin" />
+        </el-form-item>
+        <el-form-item label="字段">
+          <el-input v-model="langForm.field" placeholder="例如 fr" :disabled="langForm.builtin" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="langEditVisible=false">取消</el-button>
+        <el-button type="primary" @click="saveLang">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -64,15 +110,32 @@ import jaJP from '@/i18n/ja-JP.json'
 import thTH from '@/i18n/th-TH.json'
 import { aiTranslate } from '@/utils/ai'
 
-type Row = { key: string; zh?: string; zhTW?: string; en?: string; ja?: string; th?: string }
+type Row = { key: string; [field: string]: any }
+type LangDef = { name: string; code: string; field: string; builtin?: boolean; pack?: any }
+
+const defaultLanguages: LangDef[] = [
+  { name: '中文', code: 'zh-CN', field: 'zh', builtin: true, pack: zhCN },
+  { name: '繁體', code: 'zh-TW', field: 'zhTW', builtin: true, pack: zhTW },
+  { name: 'English', code: 'en-US', field: 'en', builtin: true, pack: enUS },
+  { name: '日本語', code: 'ja-JP', field: 'ja', builtin: true, pack: jaJP },
+  { name: 'ไทย', code: 'th-TH', field: 'th', builtin: true, pack: thTH },
+]
+
+const languages = ref<LangDef[]>([])
 const dict = ref<Row[]>([])
 const i18nList = ref<Row[]>([])
 const dialogVisible = ref(false)
 const dialogTitle = ref('')
-const form = ref<Row>({ key: '', zh: '', zhTW: '', en: '', ja: '', th: '' })
+const form = ref<Row>({ key: '' })
 const page = ref(1)
 const pageSize = ref(20)
 const aiLoading = ref(false)
+
+// 语言管理弹窗状态
+const langDialogVisible = ref(false)
+const langEditVisible = ref(false)
+const langEditIndex = ref(-1)
+const langForm = ref<LangDef>({ name: '', code: '', field: '' })
 
 // 类型（根据 key 的第一级，如 login.username -> login）
 const selectedType = ref<'all' | string>('all')
@@ -82,10 +145,27 @@ const types = computed(() => {
   return Array.from(set).sort()
 })
 
+function attachPacks(list: LangDef[]) {
+  // 依据 code 重新绑定内置语言的包，避免本地存储丢失 pack
+  const byCode: Record<string, any> = {
+    'zh-CN': zhCN,
+    'zh-TW': zhTW,
+    'en-US': enUS,
+    'ja-JP': jaJP,
+    'th-TH': thTH,
+  }
+  list.forEach(l => { if (byCode[l.code]) l.pack = byCode[l.code] })
+}
+
+function ensureFormFields() {
+  languages.value.forEach(l => { if (form.value[l.field] === undefined) form.value[l.field] = '' })
+}
+
 function buildDictFromPacks() {
   const keys = new Set<string>()
-  ;[zhCN, zhTW, enUS, jaJP, thTH].forEach((pack:any) => {
-    Object.keys(pack).forEach(k => collect(`${k}`, (pack as any)[k]))
+  const packs = languages.value.map(l => l.pack).filter(Boolean)
+  packs.forEach((pack:any) => {
+    Object.keys(pack).forEach((k:string) => collect(`${k}`, (pack as any)[k]))
   })
   function collect(prefix: string, obj: any) {
     if (obj && typeof obj === 'object') {
@@ -98,14 +178,9 @@ function buildDictFromPacks() {
   }
   const rows: Row[] = []
   keys.forEach(k => {
-    rows.push({
-      key: k,
-      zh: getVal(zhCN, k),
-      zhTW: getVal(zhTW, k),
-      en: getVal(enUS, k),
-      ja: getVal(jaJP, k),
-      th: getVal(thTH, k),
-    })
+    const r: Row = { key: k }
+    languages.value.forEach(l => { r[l.field] = l.pack ? getVal(l.pack, k) : '' })
+    rows.push(r)
   })
   return rows
 }
@@ -114,9 +189,17 @@ function getVal(obj:any, path:string) {
 }
 
 onMounted(() => {
+  const saved = localStorage.getItem('i18nLanguages')
+  languages.value = saved ? JSON.parse(saved) : defaultLanguages.map(l => ({ name: l.name, code: l.code, field: l.field, builtin: l.builtin }))
+  attachPacks(languages.value)
+
   dict.value = buildDictFromPacks()
   i18nList.value = [...dict.value]
 })
+
+watch(languages, (val) => {
+  localStorage.setItem('i18nLanguages', JSON.stringify(val.map(({ name, code, field, builtin }) => ({ name, code, field, builtin }))))
+}, { deep: true })
 
 const filtered = computed(() => {
   if (selectedType.value === 'all') return i18nList.value
@@ -133,7 +216,8 @@ function onTypeChange() { page.value = 1 }
 
 function openAddDialog() {
   dialogTitle.value = '新增'
-  form.value = { key: '', zh: '', zhTW: '', en: '', ja: '', th: '' }
+  form.value = { key: '' }
+  ensureFormFields()
   dialogVisible.value = true
 }
 function editItem(row: Row) {
@@ -167,11 +251,13 @@ async function aiFill() {
     const prompt = `请将以下文案翻译为五种语言（简体中文、繁体中文、英文、日文、泰文），仅返回 JSON，对应字段 zh, zhTW, en, ja, th。\nKey: ${form.value.key}\nText: ${seed}`
     const res = await aiTranslate(prompt)
     const { zh, zhTW, en, ja, th } = res || {}
-    form.value.zh = form.value.zh || zh || ''
-    form.value.zhTW = form.value.zhTW || zhTW || ''
-    form.value.en = form.value.en || en || ''
-    form.value.ja = form.value.ja || ja || ''
-    form.value.th = form.value.th || th || ''
+    // 仅对内置五种进行自动填充
+    const fillMap: Record<string, string | undefined> = { zh, zhTW, en, ja, th }
+    languages.value.forEach(l => {
+      if (fillMap[l.field] !== undefined) {
+        form.value[l.field] = form.value[l.field] || (fillMap[l.field] as string) || ''
+      }
+    })
     ElMessage.success('AI已自动填充')
   } catch (e) {
     ElMessage.error('AI翻译失败')
@@ -180,16 +266,67 @@ async function aiFill() {
   }
 }
 
-function addLanguage() {
-  ElMessageBox.prompt('请输入新语言代码（例如 fr-FR）与名称（例如 Français），用英文逗号分隔', '新增语言', {
-    confirmButtonText: '确定', cancelButtonText: '取消', inputPattern: /^.+,.+$/, inputErrorMessage: '格式示例：fr-FR,Français'
-  }).then(({ value }) => {
-    const [code, name] = value.split(',').map(s => s.trim())
-    // 仅前端动态列演示：在表格中动态加入该语言列（临时，实现最小闭环）
-    // 实际项目中，应该同时新增语言包文件，并在 i18n/index.ts 注册
-    i18nList.value = i18nList.value.map(row => ({ ...row, [code]: '' }))
-    ElMessage.success(`已新增语言列：${name} (${code})`)
-  })
+function openLangManager() {
+  langDialogVisible.value = true
+}
+
+function openLangEdit(row?: LangDef, index?: number) {
+  if (row) {
+    langForm.value = { ...row }
+    langEditIndex.value = index ?? -1
+  } else {
+    langForm.value = { name: '', code: '', field: '' }
+    langEditIndex.value = -1
+  }
+  langEditVisible.value = true
+}
+
+function saveLang() {
+  const name = (langForm.value.name || '').trim()
+  const code = (langForm.value.code || '').trim()
+  const field = (langForm.value.field || '').trim()
+  if (!name) return ElMessage.error('名称必填')
+  if (!/^.{2,}$/.test(code) || !/^[a-z]{2,3}(-[A-Z]{2})?$/.test(code)) return ElMessage.error('代码格式不正确，例如 zh-CN')
+  if (!/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(field)) return ElMessage.error('字段格式不正确，例如 zh 或 fr')
+
+  // 唯一性校验
+  const dupField = languages.value.some((l, idx) => l.field === field && idx !== langEditIndex.value)
+  if (dupField) return ElMessage.error('字段已存在')
+  const dupCode = languages.value.some((l, idx) => l.code === code && idx !== langEditIndex.value)
+  if (dupCode) return ElMessage.error('代码已存在')
+
+  if (langEditIndex.value === -1) {
+    languages.value.push({ name, code, field, builtin: false })
+    // 给现有数据补充新字段
+    i18nList.value = i18nList.value.map(r => ({ ...r, [field]: r[field] ?? '' }))
+  } else {
+    const old = languages.value[langEditIndex.value]
+    const changingField = old.field !== field
+    languages.value[langEditIndex.value] = { ...old, name, code, field }
+    if (changingField) {
+      // 迁移列数据
+      i18nList.value = i18nList.value.map(r => {
+        const nv: Row = { ...r }
+        nv[field] = r[old.field] || ''
+        if (field !== old.field) delete nv[old.field]
+        return nv
+      })
+    }
+  }
+  langEditVisible.value = false
+}
+
+function removeLang(index: number) {
+  const l = languages.value[index]
+  if (l.builtin) return
+  ElMessageBox.confirm(`确定删除语言「${l.name}」吗？`, '提示', { type: 'warning' })
+    .then(() => {
+      const field = l.field
+      languages.value.splice(index, 1)
+      // 可选：删除数据中的该字段
+      i18nList.value = i18nList.value.map(r => { const nv = { ...r }; delete (nv as any)[field]; return nv })
+      ElMessage.success('删除成功')
+    })
 }
 </script>
 <style scoped>
@@ -198,4 +335,5 @@ function addLanguage() {
 .actions { display: flex; gap: 8px; }
 .pager { display:flex; justify-content:flex-end; padding: 12px 0; }
 .compact-form :deep(.el-form-item) { margin-bottom: 10px; }
+.lang-actions { display:flex; justify-content:flex-end; }
 </style>
