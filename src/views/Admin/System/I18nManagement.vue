@@ -8,6 +8,10 @@
           <el-option v-for="t in types" :key="t" :label="t" :value="t" />
         </el-select>
         <el-button @click="openLangManager" plain>管理语言</el-button>
+        <el-button type="success" @click="downloadAllFiles" :loading="downloading">
+          <el-icon><Download /></el-icon>
+          {{ $t('i18n.downloadAll') || '下载所有' }}
+        </el-button>
         <el-button type="primary" @click="openAddDialog">{{ $t('i18n.add') }}</el-button>
       </div>
     </div>
@@ -103,12 +107,16 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Download } from '@element-plus/icons-vue'
 import zhCN from '@/i18n/zh-CN.json'
 import zhTW from '@/i18n/zh-TW.json'
 import enUS from '@/i18n/en-US.json'
 import jaJP from '@/i18n/ja-JP.json'
 import thTH from '@/i18n/th-TH.json'
 import { aiTranslate } from '@/utils/ai'
+import { I18nApiService } from '@/utils/i18nApi'
+import type { Language, LanguageConfig } from '@/utils/i18nApi'
+import { refreshLanguageConfig, languageConfigState } from '@/i18n'
 
 type Row = { key: string; [field: string]: any }
 type LangDef = { name: string; code: string; field: string; builtin?: boolean; pack?: any }
@@ -130,6 +138,7 @@ const form = ref<Row>({ key: '' })
 const page = ref(1)
 const pageSize = ref(20)
 const aiLoading = ref(false)
+const downloading = ref(false)
 
 // 语言管理弹窗状态
 const langDialogVisible = ref(false)
@@ -188,18 +197,94 @@ function getVal(obj:any, path:string) {
   return path.split('.').reduce((acc, cur) => (acc ? acc[cur] : undefined), obj) || ''
 }
 
-onMounted(() => {
-  const saved = localStorage.getItem('i18nLanguages')
-  languages.value = saved ? JSON.parse(saved) : defaultLanguages.map(l => ({ name: l.name, code: l.code, field: l.field, builtin: l.builtin }))
-  attachPacks(languages.value)
+function setNestedValue(obj: any, path: string, value: string) {
+  const keys = path.split('.')
+  let current = obj
+  
+  // 遍历到倒数第二个key，确保路径存在
+  for (let i = 0; i < keys.length - 1; i++) {
+    const key = keys[i]
+    if (!current[key] || typeof current[key] !== 'object') {
+      current[key] = {}
+    }
+    current = current[key]
+  }
+  
+  // 设置最后一个key的值
+  const lastKey = keys[keys.length - 1]
+  current[lastKey] = value
+}
 
-  dict.value = buildDictFromPacks()
-  i18nList.value = [...dict.value]
+// 从服务器加载语言配置和翻译数据
+async function loadLanguagesFromServer() {
+  try {
+    // 获取服务器端的语言配置和翻译数据
+    const serverData = await I18nApiService.getEnabledMessages(true) // 包含禁用的语言
+    const serverLanguages = serverData.config.languages
+    const serverMessages = serverData.messages
+    
+    // 转换为前端需要的格式
+    const convertedLanguages: LangDef[] = serverLanguages.map(lang => {
+      // 根据code推断field名称
+      let field = lang.code.toLowerCase().replace('-', '')
+      if (lang.code === 'zh-CN') field = 'zh'
+      else if (lang.code === 'zh-TW') field = 'zhTW'
+      else if (lang.code === 'en-US') field = 'en'
+      else if (lang.code === 'ja-JP') field = 'ja'
+      else if (lang.code === 'th-TH') field = 'th'
+      
+      return {
+        name: lang.nativeName || lang.name,
+        code: lang.code,
+        field: field,
+        builtin: ['zh-CN', 'zh-TW', 'en-US', 'ja-JP', 'th-TH'].includes(lang.code),
+        pack: serverMessages[lang.code] || {}
+      }
+    })
+    
+    // 为内置语言补充前端打包的翻译数据（作为fallback）
+    attachPacks(convertedLanguages)
+    
+    // 更新语言列表
+    languages.value = convertedLanguages
+    
+    // 重新构建字典和列表
+    dict.value = buildDictFromPacks()
+    i18nList.value = [...dict.value]
+    
+    // 更新本地缓存（但不再作为主要数据源）
+    localStorage.setItem('i18nLanguages', JSON.stringify(convertedLanguages.map(({ name, code, field, builtin }) => ({ name, code, field, builtin }))))
+    
+    // 更新全局语言配置状态
+    if (languageConfigState.value) {
+      languageConfigState.value = {
+        ...languageConfigState.value,
+        languages: convertedLanguages
+      }
+    }
+    
+  } catch (error) {
+    console.error('Failed to load languages from server:', error)
+    ElMessage.warning('无法从服务器加载语言配置，使用本地缓存')
+    
+    // 降级到本地缓存或默认配置
+    const saved = localStorage.getItem('i18nLanguages')
+    languages.value = saved ? JSON.parse(saved) : defaultLanguages.map(l => ({ name: l.name, code: l.code, field: l.field, builtin: l.builtin }))
+    attachPacks(languages.value)
+    
+    dict.value = buildDictFromPacks()
+    i18nList.value = [...dict.value]
+  }
+}
+
+onMounted(async () => {
+  await loadLanguagesFromServer()
 })
 
-watch(languages, (val) => {
-  localStorage.setItem('i18nLanguages', JSON.stringify(val.map(({ name, code, field, builtin }) => ({ name, code, field, builtin }))))
-}, { deep: true })
+// 移除自动保存到localStorage的watch，因为现在数据源是服务器
+// watch(languages, (val) => {
+//   localStorage.setItem('i18nLanguages', JSON.stringify(val.map(({ name, code, field, builtin }) => ({ name, code, field, builtin }))))
+// }, { deep: true })
 
 const filtered = computed(() => {
   if (selectedType.value === 'all') return i18nList.value
@@ -225,13 +310,46 @@ function editItem(row: Row) {
   form.value = { ...row }
   dialogVisible.value = true
 }
-function saveItem() {
+async function saveItem() {
   if (!form.value.key) return ElMessage.error('Key不能为空')
-  const idx = i18nList.value.findIndex(i => i.key === form.value.key)
-  if (idx > -1) i18nList.value[idx] = { ...form.value }
-  else i18nList.value.unshift({ ...form.value })
-  dialogVisible.value = false
-  ElMessage.success('保存成功')
+  
+  try {
+    // 找出原始数据，确定哪些字段被修改了
+    const originalRow = i18nList.value.find(i => i.key === form.value.key)
+    const isNewItem = !originalRow
+    
+    // 更新本地数据
+    const idx = i18nList.value.findIndex(i => i.key === form.value.key)
+    if (idx > -1) i18nList.value[idx] = { ...form.value }
+    else i18nList.value.unshift({ ...form.value })
+    
+    // 只同步被修改的语言字段到后端
+    const updatePromises: Promise<any>[] = []
+    
+    for (const lang of languages.value) {
+      const fieldName = lang.field
+      const newValue = form.value[fieldName] || ''
+      const oldValue = originalRow?.[fieldName] || ''
+      
+      // 只有当值发生变化时才更新后端
+       if (isNewItem || newValue !== oldValue) {
+         // 使用新的部分更新API，直接更新指定key，无需拉取完整文件
+         const updatePromise = I18nApiService.updateLanguageKey(lang.code, form.value.key, newValue)
+         updatePromises.push(updatePromise)
+       }
+    }
+    
+    // 只有有变化的字段才需要等待更新完成
+    if (updatePromises.length > 0) {
+      await Promise.all(updatePromises)
+    }
+    
+    dialogVisible.value = false
+    ElMessage.success('保存成功')
+  } catch (error) {
+    console.error('保存失败:', error)
+    ElMessage.error('保存失败: ' + (error as Error).message)
+  }
 }
 function deleteItem(row: Row) {
   ElMessageBox.confirm('确定删除？', '提示', { type: 'warning' })
@@ -281,7 +399,7 @@ function openLangEdit(row?: LangDef, index?: number) {
   langEditVisible.value = true
 }
 
-function saveLang() {
+async function saveLang() {
   const name = (langForm.value.name || '').trim()
   const code = (langForm.value.code || '').trim()
   const field = (langForm.value.field || '').trim()
@@ -295,38 +413,117 @@ function saveLang() {
   const dupCode = languages.value.some((l, idx) => l.code === code && idx !== langEditIndex.value)
   if (dupCode) return ElMessage.error('代码已存在')
 
-  if (langEditIndex.value === -1) {
-    languages.value.push({ name, code, field, builtin: false })
-    // 给现有数据补充新字段
-    i18nList.value = i18nList.value.map(r => ({ ...r, [field]: r[field] ?? '' }))
-  } else {
-    const old = languages.value[langEditIndex.value]
-    const changingField = old.field !== field
-    languages.value[langEditIndex.value] = { ...old, name, code, field }
-    if (changingField) {
-      // 迁移列数据
-      i18nList.value = i18nList.value.map(r => {
-        const nv: Row = { ...r }
-        nv[field] = r[old.field] || ''
-        if (field !== old.field) delete nv[old.field]
-        return nv
-      })
+  try {
+    if (langEditIndex.value === -1) {
+      // 新增语言 - 调用后端API
+      console.log('调用后端API添加语言:', { code, name, field })
+      
+      try {
+        await I18nApiService.addLanguage(code, name, name, true) // 使用name作为nativeName
+        ElMessage.success(`语言 ${name} 添加成功`)
+      } catch (apiError) {
+        // 如果是409错误（语言已存在），自动重试并覆盖
+        if (apiError.response && apiError.response.status === 409) {
+          console.log('语言已存在，尝试覆盖更新...')
+          await I18nApiService.addLanguage(code, name, name, true, true) // 设置overwrite=true
+          ElMessage.success(`语言 ${name} 更新成功`)
+        } else {
+          throw apiError // 重新抛出其他错误
+        }
+      }
+    } else {
+      // 编辑语言 - 只更新本地配置
+      const old = languages.value[langEditIndex.value]
+      const changingField = old.field !== field
+      languages.value[langEditIndex.value] = { ...old, name, code, field }
+      if (changingField) {
+        // 迁移列数据
+        i18nList.value = i18nList.value.map(r => {
+          const nv: Row = { ...r }
+          nv[field] = r[old.field] || ''
+          if (field !== old.field) delete nv[old.field]
+          return nv
+        })
+      }
+      ElMessage.success('语言配置更新成功')
+    }
+    
+    langEditVisible.value = false
+    
+    // 重新从服务器加载最新数据
+    await loadLanguagesFromServer()
+    
+    // 刷新全局语言配置
+    await refreshLanguageConfig()
+  } catch (error) {
+    console.error('保存语言失败:', error)
+    
+    // 处理具体的错误信息
+    if (error.response && error.response.data && error.response.data.error) {
+      ElMessage.error(error.response.data.error)
+    } else {
+      ElMessage.error('保存语言失败，请重试')
     }
   }
-  langEditVisible.value = false
 }
 
-function removeLang(index: number) {
+// 下载所有语言文件
+async function downloadAllFiles() {
+  try {
+    downloading.value = true
+    
+    // 获取版本信息
+    const versionInfo = await I18nApiService.getVersion()
+    
+    // 下载文件
+    const blob = await I18nApiService.downloadAllFiles()
+    
+    // 创建下载链接
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `languages-${versionInfo.version}.zip`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    
+    ElMessage.success('下载成功')
+    
+    // 刷新数据
+    await loadData()
+  } catch (error) {
+    console.error('下载失败:', error)
+    ElMessage.error('下载失败，请重试')
+  } finally {
+    downloading.value = false
+  }
+}
+
+async function removeLang(index: number) {
   const l = languages.value[index]
   if (l.builtin) return
-  ElMessageBox.confirm(`确定删除语言「${l.name}」吗？`, '提示', { type: 'warning' })
-    .then(() => {
-      const field = l.field
-      languages.value.splice(index, 1)
-      // 可选：删除数据中的该字段
-      i18nList.value = i18nList.value.map(r => { const nv = { ...r }; delete (nv as any)[field]; return nv })
-      ElMessage.success('删除成功')
-    })
+  
+  try {
+    await ElMessageBox.confirm(`确定删除语言「${l.name}」吗？`, '提示', { type: 'warning' })
+    
+    // 调用后端API删除语言
+    console.log('调用后端API删除语言:', l.code)
+    await I18nApiService.deleteLanguage(l.code)
+    
+    ElMessage.success('删除成功')
+    
+    // 重新从服务器加载最新数据
+    await loadLanguagesFromServer()
+    
+    // 刷新全局语言配置
+    await refreshLanguageConfig()
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除语言失败:', error)
+      ElMessage.error('删除语言失败，请重试')
+    }
+  }
 }
 </script>
 <style scoped>
