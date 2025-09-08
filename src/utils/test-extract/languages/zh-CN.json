@@ -1,6 +1,6 @@
 {
   "login": {
-    "title": "登录系统",
+    "title": "登录系统1",
     "username": "账号",
     "password": "密码",
     "submit": "登录"
@@ -46,5 +46,8 @@
     "save": "保存",
     "cancel": "取消",
     "addLang": "新增语言"
+  },
+  "test": {
+    "message": "测试消息"
   }
 }

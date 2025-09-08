@@ -30,9 +30,11 @@ import { ElMessage } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 import { getLanguageConfig, switchLanguage, refreshLanguageConfig, languageConfigState } from '@/i18n'
 import { I18nApiService } from '@/utils/i18nApi'
+import { useI18nStore } from '@/store/i18n'
 import type { Language } from '@/utils/i18nApi'
 
 const { locale } = useI18n()
+const i18nStore = useI18nStore()
 const loading = ref(false)
 const availableLanguages = ref<Language[]>([])
 
@@ -49,12 +51,16 @@ const loadLanguages = async () => {
   try {
     loading.value = true
     
-    // 直接从API获取最新配置，不使用缓存
-    const languageConfig = await I18nApiService.getLanguages()
-    
-    if (languageConfig) {
+    // 使用i18n store中的数据，避免重复API调用
+    if (i18nStore.languageConfig && i18nStore.languageConfig.languages) {
       // 只显示启用的语言
-      availableLanguages.value = languageConfig.languages.filter(lang => lang.enabled)
+      availableLanguages.value = i18nStore.languageConfig.languages.filter(lang => lang.enabled)
+    } else {
+      // 如果store中没有数据，触发初始化
+      await i18nStore.initializeI18n()
+      if (i18nStore.languageConfig && i18nStore.languageConfig.languages) {
+        availableLanguages.value = i18nStore.languageConfig.languages.filter(lang => lang.enabled)
+      }
     }
   } catch (error) {
     console.error('Failed to load languages:', error)

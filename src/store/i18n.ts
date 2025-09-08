@@ -1,32 +1,41 @@
 import { defineStore } from 'pinia'
 import { I18nApiService } from '@/utils/i18nApi'
 import type { LanguageConfig } from '@/utils/i18nApi'
+// 导入本地语言配置文件
+import languageListData from '@/i18n/language-list.json'
+
+// 全局防重复初始化：缓存正在进行的初始化Promise
+let currentInitPromise: Promise<void> | null = null
 
 interface I18nState {
   locale: string
+  // 当前使用的版本信息
   version: string
   lastUpdated: string
+  // 本地版本信息
+  localVersion: string
+  localLastUpdated: string
+  // 远程版本信息
+  remoteVersion: string
+  remoteLastUpdated: string
   languageConfig: LanguageConfig | null
   messages: Record<string, any>
   isLoading: boolean
   isInitialized: boolean
 }
 
-interface VersionInfo {
-  version: string
-  lastUpdated: string
-  changelog: Array<{
-    version: string
-    date: string
-    changes: string[]
-  }>
-}
-
 export const useI18nStore = defineStore('i18n', {
   state: (): I18nState => ({
     locale: localStorage.getItem('locale') || 'zh-CN',
-    version: localStorage.getItem('i18n-version') || '0.0.0',
-    lastUpdated: localStorage.getItem('i18n-lastUpdated') || '',
+    // 当前使用的版本信息
+    version: localStorage.getItem('i18n-version') || languageListData.version,
+    lastUpdated: localStorage.getItem('i18n-lastUpdated') || languageListData.lastUpdated,
+    // 本地版本信息（从本地文件读取）
+    localVersion: languageListData.version,
+    localLastUpdated: languageListData.lastUpdated,
+    // 远程版本信息
+    remoteVersion: '0.0.0',
+    remoteLastUpdated: '',
     languageConfig: null,
     messages: {},
     isLoading: false,
@@ -53,46 +62,102 @@ export const useI18nStore = defineStore('i18n', {
       localStorage.setItem('locale', lang)
     },
 
-    // 检查版本更新
-    async checkForUpdates(): Promise<boolean> {
-      try {
-        const response = await I18nApiService.checkVersion(this.version)
-        if (response.needsUpdate) {
-          console.log('New i18n version available:', response.serverVersion)
-          return true
-        }
-        return false
-      } catch (error) {
-        console.error('Failed to check for updates:', error)
-        return false
-      }
-    },
-
-    // 渐进式初始化
+    // 渐进式初始化（本地优先，远程更新）
     async initializeI18n(forceRefresh: boolean = false): Promise<void> {
+      // 已初始化且不是强制刷新，直接返回
       if (this.isInitialized && !forceRefresh) {
         return
       }
 
+      // 如果正在初始化且不是强制刷新，复用现有Promise
+      if (!forceRefresh && currentInitPromise) {
+        return currentInitPromise
+      }
+
+      // 强制刷新时等待现有初始化完成
+      if (forceRefresh && currentInitPromise) {
+        try {
+          await currentInitPromise
+        } catch {
+          // 忽略之前的错误，继续新的初始化
+        }
+      }
+
       this.isLoading = true
       
+      // 创建新的初始化Promise
+      currentInitPromise = this._doInitialize(forceRefresh)
+      
       try {
-        // 1. 先加载缓存的数据（如果有）
+        await currentInitPromise
+      } finally {
+        currentInitPromise = null
+      }
+    },
+
+    // 实际的初始化逻辑
+    async _doInitialize(forceRefresh: boolean): Promise<void> {
+      try {
+        // 1. 优先加载本地缓存数据
         this.loadFromCache()
         
-        // 2. 检查是否需要更新
-        const needsUpdate = forceRefresh || await this.checkForUpdates()
+        // 如果有本地数据，立即标记为已初始化，提供快速响应
+        if (this.localVersion && this.localVersion !== '0.0.0') {
+          this.isInitialized = true
+          // console.log('Loaded i18n from cache (fast), local version:', this.localVersion)
+        }
         
-        if (needsUpdate) {
-          // 3. 从服务器获取最新数据
-          await this.loadFromServer()
+        // 2. 异步请求远程数据
+        try {
+          const response = await I18nApiService.getCompleteData()
+          
+          // 存储远程版本信息
+          this.remoteVersion = response.version
+          this.remoteLastUpdated = response.lastUpdated
+          
+          // 3. 版本比较：决定使用哪个版本的数据
+          const shouldUseRemote = !this.localVersion || 
+                                this.localVersion === '0.0.0' || 
+                                compareVersions(this.remoteVersion, this.localVersion) > 0 ||
+                                forceRefresh
+          
+          if (shouldUseRemote) {
+            // 使用远程数据
+            this.languageConfig = {
+              version: response.version,
+              lastUpdated: response.lastUpdated,
+              languages: response.languages,
+              defaultLanguage: response.defaultLanguage,
+              fallbackLanguage: response.fallbackLanguage
+            }
+            this.messages = response.messages
+            this.version = response.version
+            this.lastUpdated = response.lastUpdated
+            
+            // 保存到缓存（注意：不更新本地版本信息，保持本地版本独立）
+            this.saveToCache()
+            
+            // console.log('Updated i18n from server (newer version):', this.remoteVersion, 'vs local:', this.localVersion)
+          } else {
+            // 使用本地数据：当本地版本 >= 远程版本时
+            await this.loadLocalData()
+            this.version = this.localVersion
+            this.lastUpdated = this.localLastUpdated
+          }
+        } catch (remoteError) {
+          // console.warn('Failed to fetch remote i18n data, using local cache:', remoteError)
+          // 远程请求失败时，确保本地数据可用
+          if (!this.isInitialized) {
+            this.loadFromCache()
+          }
         }
         
         this.isInitialized = true
       } catch (error) {
-        console.error('Failed to initialize i18n:', error)
-        // 如果服务器加载失败，确保至少有缓存数据可用
+        // console.error('Failed to initialize i18n:', error)
+        // 如果所有加载都失败，确保至少有缓存数据可用
         this.loadFromCache()
+        this.isInitialized = true
       } finally {
         this.isLoading = false
       }
@@ -109,38 +174,71 @@ export const useI18nStore = defineStore('i18n', {
         if (cachedConfig && cachedMessages) {
           this.languageConfig = JSON.parse(cachedConfig)
           this.messages = JSON.parse(cachedMessages)
-          this.version = cachedVersion || '0.0.0'
-          this.lastUpdated = cachedLastUpdated || ''
-          console.log('Loaded i18n from cache, version:', this.version)
+          // 设置当前使用的版本信息
+          this.version = cachedVersion || languageListData.version
+          this.lastUpdated = cachedLastUpdated || languageListData.lastUpdated
         }
+        
+        // 本地版本信息始终从本地文件读取，不依赖缓存
+        this.localVersion = languageListData.version
+        this.localLastUpdated = languageListData.lastUpdated
       } catch (error) {
-        console.error('Failed to load from cache:', error)
+        // Failed to load from cache - silently continue
       }
     },
 
-    // 从服务器加载
-    async loadFromServer() {
-      try {
-        // 获取聚合数据
-        const enabled = await I18nApiService.getEnabledMessages()
-        
-        // 更新状态
-        this.languageConfig = enabled.config
-        this.messages = enabled.messages
-        
-        // 获取版本信息
-        const versionInfo = await I18nApiService.getVersion()
-        this.version = versionInfo.version
-        this.lastUpdated = versionInfo.lastUpdated
-        
-        // 保存到缓存
-        this.saveToCache()
-        
-        console.log('Loaded i18n from server, version:', this.version)
-      } catch (error) {
-        console.error('Failed to load from server:', error)
-        throw error
+    // 加载本地文件数据
+    async loadLocalData() {
+      // 动态导入本地语言文件
+      const [zhCN, zhTW, enUS, jaJP, thTH] = await Promise.all([
+        import('@/i18n/languages/zh-CN.json'),
+        import('@/i18n/languages/zh-TW.json'),
+        import('@/i18n/languages/en-US.json'),
+        import('@/i18n/languages/ja-JP.json'),
+        import('@/i18n/languages/th-TH.json')
+      ])
+
+      // 构建语言配置
+      this.languageConfig = {
+        version: languageListData.version,
+        lastUpdated: languageListData.lastUpdated,
+        languages: languageListData.languages,
+        defaultLanguage: languageListData.defaultLanguage,
+        fallbackLanguage: languageListData.fallbackLanguage
       }
+
+      // 构建消息对象
+      this.messages = {
+        'zh-CN': zhCN.default,
+        'zh-TW': zhTW.default,
+        'en-US': enUS.default,
+        'ja-JP': jaJP.default,
+        'th-TH': thTH.default
+      }
+
+      // 保存到缓存
+      this.saveToCache()
+    },
+
+    // 从服务器加载（保留兼容性，但推荐使用initializeI18n）
+    async loadFromServer() {
+      // 使用合并接口获取最新数据
+      const response = await I18nApiService.getCompleteData(true)
+      
+      // 更新状态
+      this.languageConfig = {
+        version: response.version,
+        lastUpdated: response.lastUpdated,
+        languages: response.languages,
+        defaultLanguage: response.defaultLanguage,
+        fallbackLanguage: response.fallbackLanguage
+      }
+      this.messages = response.messages
+      this.version = response.version
+      this.lastUpdated = response.lastUpdated
+      
+      // 保存到缓存
+      this.saveToCache()
     },
 
     // 保存到缓存
@@ -150,8 +248,9 @@ export const useI18nStore = defineStore('i18n', {
         localStorage.setItem('i18n-messages', JSON.stringify(this.messages))
         localStorage.setItem('i18n-version', this.version)
         localStorage.setItem('i18n-lastUpdated', this.lastUpdated)
+        // 注意：本地版本信息不保存到localStorage，始终从文件读取
       } catch (error) {
-        console.error('Failed to save to cache:', error)
+        // Failed to save to cache - silently continue
       }
     },
 
@@ -166,33 +265,75 @@ export const useI18nStore = defineStore('i18n', {
       localStorage.removeItem('i18n-messages')
       localStorage.removeItem('i18n-version')
       localStorage.removeItem('i18n-lastUpdated')
+      // 注意：不清除本地版本相关的localStorage项，因为它们不应该存在
       this.languageConfig = null
       this.messages = {}
-      this.version = '0.0.0'
-      this.lastUpdated = ''
+      this.version = languageListData.version
+      this.lastUpdated = languageListData.lastUpdated
+      // 本地版本信息从文件重新读取
+      this.localVersion = languageListData.version
+      this.localLastUpdated = languageListData.lastUpdated
+      this.remoteVersion = '0.0.0'
+      this.remoteLastUpdated = ''
       this.isInitialized = false
     },
 
     // 下载所有语言文件
     async downloadAllFiles() {
+      // 获取下载链接
+      const downloadInfo = await I18nApiService.getDownloadUrl()
+      
+      // 使用a标签下载
+      I18nApiService.downloadFile(downloadInfo.downloadUrl, downloadInfo.fileName)
+    },
+
+    // 获取版本信息（本地和远程）
+    async getVersionInfo() {
       try {
-        const response = await fetch(`${I18nApiService.baseURL}/download/all`)
-        if (!response.ok) {
-          throw new Error('Download failed')
+        // 如果还没有远程版本信息，确保先初始化（避免重复API调用）
+        if (!this.remoteVersion || this.remoteVersion === '0.0.0') {
+          // 如果还没有初始化，先调用初始化方法（它会获取完整数据包括版本信息）
+          if (!this.isInitialized) {
+            await this.initializeI18n()
+          } else {
+            // 如果已经初始化但没有远程版本信息，说明可能是离线状态，使用本地版本
+            this.remoteVersion = this.localVersion
+            this.remoteLastUpdated = this.localLastUpdated
+          }
         }
         
-        const blob = await response.blob()
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = 'i18n-files.zip'
-        document.body.appendChild(a)
-        a.click()
-        window.URL.revokeObjectURL(url)
-        document.body.removeChild(a)
+        return {
+          local: {
+            version: this.localVersion,
+            lastUpdated: this.localLastUpdated
+          },
+          remote: {
+            version: this.remoteVersion,
+            lastUpdated: this.remoteLastUpdated
+          },
+          current: {
+            version: this.version,
+            lastUpdated: this.lastUpdated
+          },
+          needsUpdate: compareVersions(this.remoteVersion, this.localVersion) > 0
+        }
       } catch (error) {
-        console.error('Failed to download files:', error)
-        throw error
+        // Failed to get version info - return fallback
+        return {
+          local: {
+            version: this.localVersion,
+            lastUpdated: this.localLastUpdated
+          },
+          remote: {
+            version: this.remoteVersion || 'Unknown',
+            lastUpdated: this.remoteLastUpdated || 'Unknown'
+          },
+          current: {
+            version: this.version,
+            lastUpdated: this.lastUpdated
+          },
+          needsUpdate: false
+        }
       }
     }
   },

@@ -5,9 +5,6 @@ const API_BASE_URL = (import.meta as any).env?.VITE_I18N_API_BASE
   ? `${(import.meta as any).env.VITE_I18N_API_BASE.replace(/\/$/, '')}/api/i18n`
   : 'http://localhost:3001/api/i18n'
 
-console.log('I18n API Base URL:', API_BASE_URL)
-console.log('Environment VITE_I18N_API_BASE:', (import.meta as any).env?.VITE_I18N_API_BASE)
-
 // 创建axios实例
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -20,11 +17,9 @@ const apiClient = axios.create({
 // 添加请求拦截器
 apiClient.interceptors.request.use(
   (config) => {
-    console.log('API请求:', config.method?.toUpperCase(), config.url, config.data)
     return config
   },
   (error) => {
-    console.error('API请求错误:', error)
     return Promise.reject(error)
   }
 )
@@ -32,11 +27,9 @@ apiClient.interceptors.request.use(
 // 添加响应拦截器
 apiClient.interceptors.response.use(
   (response) => {
-    console.log('API响应:', response.status, response.data)
     return response
   },
   (error) => {
-    console.error('API响应错误:', error.response?.status, error.response?.data || error.message)
     return Promise.reject(error)
   }
 )
@@ -47,6 +40,14 @@ interface ApiResponse<T = any> {
   data?: T
   error?: string
   message?: string
+}
+
+// 语言包信息接口
+export interface LanguagePackageInfo {
+  version: string
+  fileName: string
+  createdAt: string
+  url?: string
 }
 
 interface Language {
@@ -80,11 +81,6 @@ interface EnabledMessagesResponse {
 interface VersionInfo {
   version: string
   lastUpdated: string
-  changelog: Array<{
-    version: string
-    date: string
-    changes: string[]
-  }>
 }
 
 interface VersionCheckResponse {
@@ -97,6 +93,16 @@ interface VersionCheckResponse {
     date: string
     changes: string[]
   }>
+}
+
+interface CompleteDataResponse {
+  success: boolean
+  version: string
+  lastUpdated: string
+  languages: Language[]
+  messages: BatchLanguageResponse
+  defaultLanguage: string
+  fallbackLanguage: string
 }
 
 interface ManifestInfo {
@@ -174,6 +180,14 @@ export class I18nApiService {
   }
 
   /**
+   * 批量更新多个语言的指定key
+   */
+  static async updateLanguageKeyBatch(key: string, translations: Record<string, string>): Promise<void> {
+    const response = await apiClient.post<ApiResponse>('/languages/update-key-batch', { key, translations })
+    if (!response.data.success) throw new Error(response.data.error || `Failed to batch update key: ${key}`)
+  }
+
+  /**
    * 添加新的语言
    */
   static async addLanguage(
@@ -197,11 +211,17 @@ export class I18nApiService {
   }
 
   /**
-   * 获取版本信息
+   * 获取版本信息（从完整数据接口获取）
    */
   static async getVersion(): Promise<VersionInfo> {
-    const response = await apiClient.get<ApiResponse<VersionInfo>>('/version')
-    if (response.data.success && response.data.data) return response.data.data
+    // 不传递includeDisabled参数，避免不必要的请求
+    const response = await apiClient.get('/data/complete')
+    if (response.data.success) {
+      return {
+        version: response.data.version,
+        lastUpdated: response.data.lastUpdated
+      }
+    }
     throw new Error(response.data.error || 'Failed to fetch version info')
   }
 
@@ -224,13 +244,70 @@ export class I18nApiService {
   }
 
   /**
-   * 下载所有语言文件
+   * 获取下载链接（最新版本语言包）
    */
-  static async downloadAllFiles(): Promise<Blob> {
-    const response = await apiClient.get('/download/all', {
-      responseType: 'blob'
-    })
-    return response.data
+  static async getDownloadUrl(): Promise<{ downloadUrl: string; fileName: string; fileSize: number; version: string }> {
+    const response = await apiClient.get<ApiResponse<{ downloadUrl: string; fileName: string; fileSize: number; version: string; lastUpdated: string }>>('/download/latest')
+    if (response.data.success && response.data.data) {
+      return response.data.data
+    }
+    throw new Error(response.data.error || 'Failed to get download URL')
+  }
+
+  /**
+   * 获取临时下载链接（兼容旧接口）
+   */
+  static async getTempDownloadUrl(): Promise<{ downloadUrl: string; fileName: string; fileSize: number }> {
+    const response = await apiClient.get<ApiResponse<{ downloadUrl: string; fileName: string; fileSize: number }>>('/download/all')
+    if (response.data.success && response.data.data) {
+      return response.data.data
+    }
+    throw new Error(response.data.error || 'Failed to get download URL')
+  }
+
+  /**
+   * 手动创建语言包
+   */
+  static async createLanguagePackage(): Promise<{ fileName: string; version: string; fileSize: number; downloadUrl: string }> {
+    const response = await apiClient.post<ApiResponse<{ fileName: string; version: string; fileSize: number; downloadUrl: string }>>('/download/create-package')
+    if (response.data.success && response.data.data) {
+      return response.data.data
+    }
+    throw new Error(response.data.error || 'Failed to create language package')
+  }
+
+  /**
+   * 下载文件（使用a标签方式）
+   */
+  static downloadFile(url: string, fileName: string = 'i18n-files.zip'): void {
+    const link = document.createElement('a')
+    // 如果是相对URL，使用API基础URL来拼接
+    let fullUrl = url
+    if (!url.startsWith('http')) {
+      // 使用API基础URL（包含正确的端口3001）而不是当前页面的origin
+      const apiBaseUrl = API_BASE_URL.replace('/api/i18n', '')
+      fullUrl = `${apiBaseUrl}${url}`
+    }
+    link.href = fullUrl
+    link.download = fileName
+    link.style.display = 'none'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  /**
+   * 获取完整的i18n数据（合并接口）
+   */
+  static async getCompleteData(includeDisabled: boolean = false): Promise<CompleteDataResponse> {
+    // 只有当includeDisabled为true时才添加参数，避免发送不必要的false参数
+    const response = await apiClient.get('/data/complete', 
+      includeDisabled ? { params: { includeDisabled: true } } : {}
+    )
+    if (response.data.success) {
+      return response.data
+    }
+    throw new Error(response.data.error || 'Failed to fetch complete data')
   }
 }
 
@@ -243,6 +320,7 @@ export type {
   EnabledMessagesResponse, 
   VersionInfo,
   VersionCheckResponse,
+  CompleteDataResponse,
   ManifestInfo,
   ApiResponse 
 }

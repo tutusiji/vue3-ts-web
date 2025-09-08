@@ -1,29 +1,49 @@
 import { createI18n } from 'vue-i18n'
 import { useI18nStore } from '@/store/i18n'
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
 import type { LanguageConfig } from '@/utils/i18nApi'
 
 // 默认消息（用于离线或API失败时的回退）
-import zhCN from './zh-CN.json'
-import enUS from './en-US.json'
-import jaJP from './ja-JP.json'
-import thTH from './th-TH.json'
-import zhTW from './zh-TW.json'
+// 语言文件现在存放在 languages/ 目录中，与配置文件分离
+// 动态导入语言配置列表
+import languageListData from './language-list.json'
 
-const fallbackMessages = {
+// 动态导入语言文件
+import zhCN from './languages/zh-CN.json'
+import enUS from './languages/en-US.json'
+import jaJP from './languages/ja-JP.json'
+import thTH from './languages/th-TH.json'
+import zhTW from './languages/zh-TW.json'
+
+// 根据language-list.json动态构建语言映射
+const languageModules = {
   'zh-CN': zhCN,
   'zh-TW': zhTW,
   'en-US': enUS,
   'ja-JP': jaJP,
-  'th-TH': thTH,
+  'th-TH': thTH
 }
+
+// 根据配置文件构建备用消息
+const fallbackMessages = languageListData.languages
+  .filter(lang => lang.enabled && languageModules[lang.code])
+  .reduce((acc, lang) => {
+    acc[lang.code] = languageModules[lang.code]
+    return acc
+  }, {} as Record<string, any>)
 
 function getLocale(): string {
   const saved = localStorage.getItem('locale')
-  if (saved) return saved
+  if (saved && Object.keys(fallbackMessages).includes(saved)) {
+    return saved
+  }
+  
   const browserLang = navigator.language
-  if ((fallbackMessages as Record<string, any>)[browserLang]) return browserLang
-  return 'zh-CN'
+  if (Object.keys(fallbackMessages).includes(browserLang)) {
+    return browserLang
+  }
+  
+  return languageListData.defaultLanguage || 'zh-CN' // 使用配置文件中的默认语言
 }
 
 // 创建i18n实例
