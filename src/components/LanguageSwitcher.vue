@@ -15,9 +15,6 @@
           {{ language.nativeName }}
           <span v-if="language.code === currentLocale" class="current-indicator"> ✓</span>
         </el-dropdown-item>
-        <el-dropdown-item divided @click="refreshLanguages">
-          <el-icon><Refresh /></el-icon> 刷新语言列表
-        </el-dropdown-item>
       </el-dropdown-menu>
     </template>
   </el-dropdown>
@@ -27,9 +24,7 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
-import { Refresh } from '@element-plus/icons-vue'
-import { getLanguageConfig, switchLanguage, refreshLanguageConfig, languageConfigState } from '@/i18n'
-import { I18nApiService } from '@/utils/i18nApi'
+import { switchLanguage, languageConfigState } from '@/i18n'
 import { useI18nStore } from '@/store/i18n'
 import type { Language } from '@/utils/i18nApi'
 
@@ -63,7 +58,7 @@ const loadLanguages = async () => {
       }
     }
   } catch (error) {
-    console.error('Failed to load languages:', error)
+    // console.error('Failed to load languages:', error)
     ElMessage.warning('加载语言列表失败，使用默认配置')
     
     // 使用默认语言配置
@@ -88,29 +83,12 @@ const changeLang = async (code: string) => {
     await switchLanguage(code)
     ElMessage.success(`语言已切换为: ${getCurrentLanguageName()}`)
   } catch (error) {
-    console.error('Failed to switch language:', error)
+    // console.error('Failed to switch language:', error)
     ElMessage.error('语言切换失败')
     
     // 回退到本地切换
     locale.value = code
     localStorage.setItem('locale', code)
-  } finally {
-    loading.value = false
-  }
-}
-
-// 刷新语言列表
-const refreshLanguages = async () => {
-  try {
-    loading.value = true
-    // 刷新全局语言配置
-    await refreshLanguageConfig()
-    // 重新加载本地语言列表
-    await loadLanguages()
-    ElMessage.success('语言列表已刷新')
-  } catch (error) {
-    console.error('Failed to refresh languages:', error)
-    ElMessage.error('刷新语言列表失败')
   } finally {
     loading.value = false
   }

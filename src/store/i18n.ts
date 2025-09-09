@@ -101,12 +101,6 @@ export const useI18nStore = defineStore('i18n', {
         // 1. 优先加载本地缓存数据
         this.loadFromCache()
         
-        // 如果有本地数据，立即标记为已初始化，提供快速响应
-        if (this.localVersion && this.localVersion !== '0.0.0') {
-          this.isInitialized = true
-          // console.log('Loaded i18n from cache (fast), local version:', this.localVersion)
-        }
-        
         // 2. 异步请求远程数据
         try {
           const response = await I18nApiService.getCompleteData()
@@ -147,16 +141,43 @@ export const useI18nStore = defineStore('i18n', {
         } catch (remoteError) {
           // console.warn('Failed to fetch remote i18n data, using local cache:', remoteError)
           // 远程请求失败时，确保本地数据可用
-          if (!this.isInitialized) {
-            this.loadFromCache()
+          // 如果缓存中没有有效的语言配置，强制加载本地数据
+          if (!this.languageConfig) {
+            await this.loadLocalData()
+            this.version = this.localVersion
+            this.lastUpdated = this.localLastUpdated
           }
         }
         
-        this.isInitialized = true
+        // 只有在确保有有效的languageConfig时才标记为已初始化
+        if (this.languageConfig) {
+          this.isInitialized = true
+        }
       } catch (error) {
         // console.error('Failed to initialize i18n:', error)
-        // 如果所有加载都失败，确保至少有缓存数据可用
-        this.loadFromCache()
+        // 如果所有加载都失败，确保至少有本地数据可用
+        try {
+          this.loadFromCache()
+          // 如果缓存也失败，强制加载本地数据作为最后的fallback
+          if (!this.languageConfig) {
+            await this.loadLocalData()
+            this.version = this.localVersion
+            this.lastUpdated = this.localLastUpdated
+          }
+        } catch (fallbackError) {
+          // 即使本地数据加载失败，也要提供最基本的语言配置，避免组件空白
+          this.languageConfig = {
+            version: this.localVersion,
+            lastUpdated: this.localLastUpdated,
+            languages: [
+              { code: 'zh-CN', name: '简体中文', nativeName: '中文', enabled: true, file: 'zh-CN.json' },
+              { code: 'zh-TW', name: '繁体中文', nativeName: '繁體中文', enabled: true, file: 'zh-TW.json' },
+              { code: 'en-US', name: 'English', nativeName: 'English', enabled: true, file: 'en-US.json' }
+            ],
+            defaultLanguage: 'zh-CN',
+            fallbackLanguage: 'zh-CN'
+          }
+        }
         this.isInitialized = true
       } finally {
         this.isLoading = false

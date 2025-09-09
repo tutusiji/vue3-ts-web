@@ -96,13 +96,13 @@ export async function setupI18n(forceRefresh: boolean = false): Promise<void> {
       // 保持向后兼容
       g.languageConfig = i18nStore.languageConfig
       
-      // 更新响应式状态
-      languageConfigState.value = i18nStore.languageConfig
+      // languageConfigState是computed属性，会自动响应store的变化
+      // 无需手动赋值，因为它依赖于i18nStore.languageConfig
       
-      console.log('Language configuration updated from store, version:', i18nStore.version)
+      // console.log('Language configuration updated from store, version:', i18nStore.version)
     }
   } catch (error) {
-    console.error('Failed to setup i18n:', error)
+    // console.error('Failed to setup i18n:', error)
     // API失败时使用本地文件，已经在初始化时设置了
   }
 }
@@ -143,7 +143,7 @@ export async function switchLanguage(code: string): Promise<void> {
         const languageData = await I18nApiService.getLanguage(code)
         g.setLocaleMessage(code, languageData.translations)
       } catch (error) {
-        console.error(`Failed to load language ${code}:`, error)
+        // console.error(`Failed to load language ${code}:`, error)
         return
       }
     }

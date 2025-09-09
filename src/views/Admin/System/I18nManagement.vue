@@ -393,22 +393,19 @@ async function loadLanguagesFromServer() {
   try {
     const i18nStore = useI18nStore()
     
-    // 优先使用store中的数据，避免重复API调用
+    // 在onMounted中已经调用过initializeI18n，这里不需要再次调用
+    // 直接从store中获取数据即可
+    
+    // 从store中获取数据
     let serverLanguages, serverMessages
     
-    if (i18nStore.languageConfig && i18nStore.messages) {
-      // 使用store中已有的数据
+    if (i18nStore.languageConfig && i18nStore.messages && Object.keys(i18nStore.messages).length > 0) {
+      // 使用store中的数据
       serverLanguages = i18nStore.languageConfig.languages
       serverMessages = i18nStore.messages
     } else {
-      // 如果store中没有数据，强制刷新获取最新数据
-      await i18nStore.initializeI18n(true)
-      if (i18nStore.languageConfig && i18nStore.messages) {
-        serverLanguages = i18nStore.languageConfig.languages
-        serverMessages = i18nStore.messages
-      } else {
-        throw new Error('Failed to load data from store')
-      }
+      // 如果store中没有数据，使用默认本地配置并尝试手动加载
+      throw new Error('No data available in store, will use default local configuration')
     }
     
     // 转换为前端需要的格式
@@ -446,12 +443,56 @@ async function loadLanguagesFromServer() {
     // 更新全局语言配置将通过 refreshLanguageConfig 完成
     
   } catch (error) {
-    ElMessage.warning('无法从服务器加载语言配置，使用本地缓存')
+    ElMessage.warning('无法从服务器加载语言配置，使用本地默认配置')
     
-    // 降级到本地缓存或默认配置
-    const saved = localStorage.getItem('i18nLanguages')
-    languages.value = saved ? JSON.parse(saved) : defaultLanguages.value.map(l => ({ name: l.name, code: l.code, field: l.field, builtin: l.builtin }))
-    attachPacks(languages.value)
+    // 使用默认本地配置
+    const i18nStore = useI18nStore()
+    
+    // 如果store初始化失败，手动触发本地数据加载
+    if (!i18nStore.languageConfig) {
+      try {
+        await i18nStore.loadLocalData()
+        // 数据加载成功后，从store中获取
+        if (i18nStore.languageConfig && i18nStore.messages) {
+          const serverLanguages = i18nStore.languageConfig.languages
+          const serverMessages = i18nStore.messages
+          
+          const convertedLanguages: LangDef[] = serverLanguages.map(lang => {
+            // 根据code推断field名称
+            let field = lang.code.toLowerCase().replace('-', '')
+            if (lang.code === 'zh-CN') field = 'zh'
+            else if (lang.code === 'zh-TW') field = 'zhTW'
+            else if (lang.code === 'en-US') field = 'en'
+            else if (lang.code === 'ja-JP') field = 'ja'
+            else if (lang.code === 'th-TH') field = 'th'
+            
+            return {
+              name: lang.nativeName || lang.name,
+              code: lang.code,
+              field: field,
+              builtin: ['zh-CN', 'zh-TW', 'en-US', 'ja-JP', 'th-TH'].includes(lang.code),
+              pack: serverMessages[lang.code] || {}
+            }
+          })
+          
+          languages.value = convertedLanguages
+          dict.value = buildDictFromPacks()
+          i18nList.value = [...dict.value]
+          return
+        }
+      } catch (localError) {
+        // 本地数据加载也失败，使用hardcoded默认配置
+      }
+    }
+    
+    // 最后的fallback：使用hardcoded的默认配置
+    languages.value = defaultLanguages.value.map(l => ({ 
+      name: l.name, 
+      code: l.code, 
+      field: l.field, 
+      builtin: l.builtin,
+      pack: l.pack 
+    }))
     
     dict.value = buildDictFromPacks()
     i18nList.value = [...dict.value]
@@ -468,8 +509,8 @@ function loadVersionInfo() {
         lastUpdated: i18nStore.localLastUpdated || 'Unknown'
       },
       remote: {
-        version: i18nStore.remoteVersion || 'Unknown',
-        lastUpdated: i18nStore.remoteLastUpdated || 'Unknown'
+        version: (i18nStore.remoteVersion && i18nStore.remoteVersion !== '0.0.0' && i18nStore.remoteVersion !== '') ? i18nStore.remoteVersion : 'Unknown',
+        lastUpdated: (i18nStore.remoteLastUpdated && i18nStore.remoteLastUpdated !== '') ? i18nStore.remoteLastUpdated : 'Unknown'
       },
       current: {
         version: i18nStore.version || 'Unknown',
@@ -479,13 +520,13 @@ function loadVersionInfo() {
         compareVersions(i18nStore.remoteVersion, i18nStore.localVersion) > 0 : false
     }
     
-    // 如果没有远程版本信息，才异步获取（避免重复调用）
-    if (!i18nStore.remoteVersion || i18nStore.remoteVersion === '0.0.0') {
-      getRemoteVersionInfo()
-    }
+    // 注释掉异步获取远程版本信息的逻辑，因为初始化时已经获取过了
+    // if (!i18nStore.remoteVersion || i18nStore.remoteVersion === '0.0.0' || i18nStore.remoteVersion === '') {
+    //   getRemoteVersionInfo()
+    // }
     
   } catch (error) {
-    // 获取版本信息失败 - 降级到仅显示本地版本
+    // 获取版本信息失败 - 降级到显示未知状态
     versionInfo.value = {
       local: {
         version: 'Unknown',
@@ -520,7 +561,17 @@ async function getRemoteVersionInfo() {
     }
     
   } catch (error) {
-    // 静默处理，不显示错误信息
+    // 当获取远程版本信息失败时，设置远程版本为未知
+    if (versionInfo.value) {
+      versionInfo.value = {
+        ...versionInfo.value,
+        remote: {
+          version: 'Unknown',
+          lastUpdated: 'Unknown'
+        },
+        needsUpdate: false
+      }
+    }
   }
 }
 
@@ -541,13 +592,20 @@ function formatDate(dateString: string) {
 }
 
 onMounted(async () => {
-  // 只有在还未初始化时才主动初始化，避免重复请求
-  if (!i18nStore.isInitialized) {
-    await i18nStore.initializeI18n()
+  try {
+    // 只有在还未初始化时才主动初始化，避免重复请求
+    if (!i18nStore.isInitialized) {
+      await i18nStore.initializeI18n()
+    }
+  } catch (error) {
+    // i18n初始化失败时的处理
+    ElMessage.warning('国际化服务初始化失败，部分功能可能不可用')
   }
-  // 获取版本信息（从store中获取，避免重复API调用）
+  
+  // 获取版本信息（从store中获取，初始化后应该已经有数据了）
   loadVersionInfo()
-  // 加载语言列表
+  
+  // 加载语言列表（从已初始化的store中获取数据）
   await loadLanguagesFromServer()
 })
 

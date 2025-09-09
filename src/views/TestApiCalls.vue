@@ -28,7 +28,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useI18nStore } from '@/store/i18n'
-import I18nApiService from '@/utils/i18nApi'
+import { I18nApiService } from '@/utils/i18nApi'
 
 const i18nStore = useI18nStore()
 const loading = ref(false)
