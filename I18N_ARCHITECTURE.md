@@ -46,7 +46,7 @@
 ## 3. 核心模块拆解
 ### 3.1 前端 i18n Store (`src/store/i18n.ts`)
 职责：
-- 初始化：本地缓存 → 本地内置文件 → 远程合并
+- 初始化：本地缓存 → 本地动态扫描(glob)内置语言文件 → 远程合并
 - 维护状态：`languageConfig`、`messages`、`version`、`lastUpdated`
 - 语言切换：动态更新 `vue-i18n` 实例 & 缓存
 - 版本判断：`compareVersions(remote, local)` 决定是否升级
@@ -65,8 +65,8 @@ async initializeI18n(forceRefresh) {
 ```
 
 ### 3.2 `vue-i18n` 集成 (`src/i18n/index.ts`)
-- 初始注入最小默认语言（避免空翻译）
-- 语言模块静态 + 动态混合管理
+- 初始通过 `import.meta.glob` 动态匹配 `languages/*.json` 作为 fallback（不再硬编码 import 列表）
+- 语言模块完全动态（新增语言只需增加 json + 更新语言列表）
 - `languageConfigState = computed(() => store.languageConfig)` → 组件自动跟随
 
 ### 3.3 语言配置文件结构
@@ -245,13 +245,14 @@ localStorage 缓存
 ```
 src/
   i18n/
-    index.ts              # vue-i18n 集成与动态装载
-    language-list.json    # 语言配置清单
-    languages/*.json      # 各语言资源
+    index.ts              # vue-i18n 集成 + 动态 glob fallback
+    language-list.json    # 语言配置清单（version, lastUpdated, languages[]...）
+    languages/*.json      # 各语言资源（新增语言直接放入）
   store/
-    i18n.ts               # 核心状态与初始化逻辑
+    i18n.ts               # 核心状态与初始化逻辑（缓存→本地glob→远程）
   utils/
-    i18nApi.ts            # i18n 业务 API 调用
+    i18nApi.ts            # i18n 业务 API（聚合/单语/批量更新/下载）
+    i18nField.ts          # 语言 code ↔ 字段名映射 (兼容旧列名)
     request/              # 通用请求封装
 ```
 
@@ -261,7 +262,9 @@ src/
 |------|------|
 | 为什么不用直接后端动态返回所有 key？ | 仍需本地首屏保障与离线能力 |
 | 为什么多一层 `languageConfigState`? | 统一对外只读接口，避免组件直接耦合 store 结构 |
-| 语言切换后未更新？ | 确认是否是缓存旧数据 / 是否未启用语言 |
+| 语言切换后未更新？ | 确认缓存 / 语言是否启用 / 是否存在 messages 映射 |
+| 新增语言不显示？ | 确认已添加 json 文件 + language-list.json 启用 + 强制刷新管理页 |
+| 删除语言仍残留列？ | 确认已调用强制刷新（管理页删除后使用 `loadLanguagesFromServer(true)`） |
 | 如何监控遗漏 key？ | 可在 dev 模式增强 runtime 捕获 missing 事件 |
 
 ---
