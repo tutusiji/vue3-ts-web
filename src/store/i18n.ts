@@ -210,16 +210,19 @@ export const useI18nStore = defineStore('i18n', {
 
     // 加载本地文件数据
     async loadLocalData() {
-      // 动态导入本地语言文件
-      const [zhCN, zhTW, enUS, jaJP, thTH] = await Promise.all([
-        import('@/i18n/languages/zh-CN.json'),
-        import('@/i18n/languages/zh-TW.json'),
-        import('@/i18n/languages/en-US.json'),
-        import('@/i18n/languages/ja-JP.json'),
-        import('@/i18n/languages/th-TH.json')
-      ])
+      // 使用 Vite 动态导入本地语言文件，依据 language-list.json 列表
+      const modules = import.meta.glob('@/i18n/languages/*.json', { eager: true }) as Record<string, any>
 
-      // 构建语言配置
+      const messages: Record<string, any> = {}
+      languageListData.languages.forEach(lang => {
+        const fileName = lang.file || `${lang.code}.json`
+        // 在 modules 中查找以 fileName 结尾的路径
+        const entry = Object.keys(modules).find(p => p.endsWith(`/${fileName}`))
+        if (entry) {
+          messages[lang.code] = modules[entry].default || {}
+        }
+      })
+
       this.languageConfig = {
         version: languageListData.version,
         lastUpdated: languageListData.lastUpdated,
@@ -227,17 +230,7 @@ export const useI18nStore = defineStore('i18n', {
         defaultLanguage: languageListData.defaultLanguage,
         fallbackLanguage: languageListData.fallbackLanguage
       }
-
-      // 构建消息对象
-      this.messages = {
-        'zh-CN': zhCN.default,
-        'zh-TW': zhTW.default,
-        'en-US': enUS.default,
-        'ja-JP': jaJP.default,
-        'th-TH': thTH.default
-      }
-
-      // 保存到缓存
+      this.messages = messages
       this.saveToCache()
     },
 

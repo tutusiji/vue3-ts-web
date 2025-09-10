@@ -9,40 +9,48 @@ import type { LanguageConfig } from '@/utils/i18nApi'
 import languageListData from './language-list.json'
 
 // 动态导入语言文件
-import zhCN from './languages/zh-CN.json'
-import enUS from './languages/en-US.json'
-import jaJP from './languages/ja-JP.json'
-import thTH from './languages/th-TH.json'
-import zhTW from './languages/zh-TW.json'
+// 动态本地语言模块（构建时一次性注入）
+const localLanguageModules = import.meta.glob('./languages/*.json', { eager: true }) as Record<string, any>
 
-// 根据language-list.json动态构建语言映射
-const languageModules = {
-  'zh-CN': zhCN,
-  'zh-TW': zhTW,
-  'en-US': enUS,
-  'ja-JP': jaJP,
-  'th-TH': thTH
+// 构建本地 fallback 消息：依据 language-list.json + 实际存在的文件
+function buildFallbackMessages() {
+  const messages: Record<string, any> = {}
+  languageListData.languages
+    .filter(l => l.enabled !== false) // 只加载启用的
+    .forEach(l => {
+      const fileName = l.file || `${l.code}.json`
+      const entry = Object.keys(localLanguageModules).find(p => p.endsWith(`/${fileName}`))
+      if (entry) {
+        messages[l.code] = localLanguageModules[entry].default || localLanguageModules[entry]
+      }
+    })
+  return messages
 }
 
-// 根据配置文件构建备用消息
-const fallbackMessages = languageListData.languages
-  .filter(lang => lang.enabled && languageModules[lang.code])
-  .reduce((acc, lang) => {
-    acc[lang.code] = languageModules[lang.code]
-    return acc
-  }, {} as Record<string, any>)
+const fallbackMessages = buildFallbackMessages()
 
 function getLocale(): string {
   const saved = localStorage.getItem('locale')
-  if (saved && Object.keys(fallbackMessages).includes(saved)) {
-    return saved
+  if (saved) {
+    // 1. 如果在本地内置fallback里，直接返回
+    if (Object.keys(fallbackMessages).includes(saved)) return saved
+    // 2. 检查缓存的远程配置里是否存在（支持远程新增语言刷新后仍记住）
+    try {
+      const cached = localStorage.getItem('i18n-config')
+      if (cached) {
+        const cfg = JSON.parse(cached)
+        if (cfg?.languages?.some((l: any) => l.code === saved && l.enabled !== false)) {
+          return saved
+        }
+      }
+    } catch { /* ignore */ }
   }
-  
+
   const browserLang = navigator.language
   if (Object.keys(fallbackMessages).includes(browserLang)) {
     return browserLang
   }
-  
+
   return languageListData.defaultLanguage || 'zh-CN' // 使用配置文件中的默认语言
 }
 
@@ -80,10 +88,14 @@ export async function setupI18n(forceRefresh: boolean = false): Promise<void> {
       Object.keys(i18nStore.messages).forEach(code => {
         g.setLocaleMessage(code, i18nStore.messages[code])
       })
-      
-      // 设置默认与回退语言
-      if (i18nStore.languageConfig.defaultLanguage) {
-        const savedLocale = localStorage.getItem('locale')
+
+      // 优先恢复用户保存的语言（包括远程新增的语言）
+      const savedLocale = localStorage.getItem('locale')
+      if (savedLocale && i18nStore.messages[savedLocale]) {
+        g.locale.value = savedLocale
+        i18nStore.setLocale(savedLocale)
+      } else if (i18nStore.languageConfig.defaultLanguage) {
+        // 其次使用配置中的默认语言
         if (!savedLocale || !g.getLocaleMessage(savedLocale)) {
           g.locale.value = i18nStore.languageConfig.defaultLanguage
           i18nStore.setLocale(i18nStore.languageConfig.defaultLanguage)

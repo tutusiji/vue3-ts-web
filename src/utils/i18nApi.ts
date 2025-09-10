@@ -114,7 +114,7 @@ export class I18nApiService {
     // 如果是相对URL，使用API基础URL来拼接
     let fullUrl = url
     if (!url.startsWith('http')) {
-      // 使用API基础URL（包含正确的端口3001）而不是当前页面的origin
+      // 使用API基础URL（包含正确的端口3400）而不是当前页面的origin
       const apiBaseUrl = I18N_API_BASE_URL.replace('/api/i18n', '')
       fullUrl = `${apiBaseUrl}${url}`
     }

@@ -208,6 +208,7 @@ import { I18nApiService } from '@/utils/i18nApi'
 import { refreshLanguageConfig } from '@/i18n'
 import { translationService } from '@/utils/ai'
 import type { TranslationProgress } from '@/utils/ai'
+import { toField } from '@/utils/i18nField'
 import { useI18nStore } from '@/store/i18n'
 
 type Row = { key: string; [field: string]: any }
@@ -216,25 +217,11 @@ type LangDef = { name: string; code: string; field: string; builtin?: boolean; p
 // 从store中获取语言配置
 const i18nStore = useI18nStore()
 
-// 计算属性：从store中获取语言列表
-const defaultLanguages = computed(() => {
-  if (!i18nStore.languageConfig?.languages) {
-    return [
-      { name: '中文', code: 'zh-CN', field: 'zh', builtin: true, pack: {} },
-      { name: '繁體', code: 'zh-TW', field: 'zhTW', builtin: true, pack: {} },
-      { name: 'English', code: 'en-US', field: 'en', builtin: true, pack: {} },
-      { name: '日本語', code: 'ja-JP', field: 'ja', builtin: true, pack: {} },
-      { name: 'ไทย', code: 'th-TH', field: 'th', builtin: true, pack: {} },
-    ]
-  }
-  
-  return i18nStore.languageConfig.languages.map(lang => ({
-    name: lang.name,
-    code: lang.code,
-    field: lang.code.replace('-', ''),
-    builtin: true,
-    pack: i18nStore.messages[lang.code] || {}
-  }))
+// 本地 fallback：若初始化尚未完成，使用语言列表配置的最小占位（不含硬编码写死）
+const placeholderLanguages = computed(() => {
+  const cfg = i18nStore.languageConfig?.languages
+  if (!cfg) return [] as LangDef[]
+  return cfg.map(l => ({ name: l.name, code: l.code, field: toField(l.code), builtin: true, pack: {} }))
 })
 
 const languages = ref<LangDef[]>([])
@@ -406,66 +393,55 @@ function debounceRefreshData() {
       // 只调用一次数据加载，避免重复API调用
       await loadLanguagesFromServer()
     } catch (error) {
-      console.error('Failed to refresh data:', error)
+      // 刷新数据失败静默处理
     } finally {
       isRefreshing.value = false
     }
   }, 1000) // 1秒防抖
 }
 
-// 从服务器加载语言配置和翻译数据
-async function loadLanguagesFromServer() {
+// 从服务器加载语言配置和翻译数据（避免已初始化情况下的重复请求）
+async function loadLanguagesFromServer(forceRefresh: boolean = false) {
   try {
     const i18nStore = useI18nStore()
-    
-    // 强制重新获取最新数据，不使用缓存
-    await i18nStore.initializeI18n(true)
-    
-    // 从store中获取最新数据
+
+    // 仅在需要刷新或尚未初始化时才请求服务器
+    if (forceRefresh || !i18nStore.isInitialized) {
+      await i18nStore.initializeI18n(forceRefresh)
+    }
+
+    // 使用 store 中已有的数据
     const serverLanguages = i18nStore.languageConfig?.languages || []
     const serverMessages = i18nStore.messages || {}
-    
-    // 转换为前端需要的格式
-    const convertedLanguages: LangDef[] = serverLanguages.map(lang => {
-      // 根据code推断field名称
-      let field = lang.code.toLowerCase().replace('-', '')
-      if (lang.code === 'zh-CN') field = 'zh'
-      else if (lang.code === 'zh-TW') field = 'zhTW'
-      else if (lang.code === 'en-US') field = 'en'
-      else if (lang.code === 'ja-JP') field = 'ja'
-      else if (lang.code === 'th-TH') field = 'th'
-      
-      return {
-        name: lang.nativeName || lang.name,
-        code: lang.code,
-        field: field,
-        builtin: ['zh-CN', 'zh-TW', 'en-US', 'ja-JP', 'th-TH'].includes(lang.code),
-        pack: serverMessages[lang.code] || {}
-      }
-    })
-    
-    // 为内置语言补充前端打包的翻译数据（作为fallback）
+
+    const localModulePaths = Object.keys(import.meta.glob('@/i18n/languages/*.json'))
+    const convertedLanguages: LangDef[] = serverLanguages
+      .filter(l => l.enabled !== false)
+      .map(lang => {
+        const field = toField(lang.code)
+        const fileName = lang.file || `${lang.code}.json`
+        const builtin = localModulePaths.some(p => p.endsWith(`/${fileName}`))
+        return {
+          name: lang.nativeName || lang.name,
+          code: lang.code,
+          field,
+          builtin,
+            pack: serverMessages[lang.code] || {}
+        }
+      })
+
     attachPacks(convertedLanguages)
-    
-    // 更新语言列表
     languages.value = convertedLanguages
-    
-    // 重新构建字典和列表
     dict.value = buildDictFromPacks()
     i18nList.value = [...dict.value]
-    
-    // 更新本地缓存
     localStorage.setItem('i18nLanguages', JSON.stringify(convertedLanguages.map(({ name, code, field, builtin }) => ({ name, code, field, builtin }))))
-    
+
   } catch (error) {
-    console.error('Failed to load languages from server:', error)
+    // 加载失败时使用本地/缓存数据
     ElMessage.warning('无法从服务器加载语言配置，使用本地默认配置')
-    
-    // 使用默认本地配置
     const savedLanguages = localStorage.getItem('i18nLanguages')
-    languages.value = savedLanguages ? JSON.parse(savedLanguages) : defaultLanguages.value
+  languages.value = savedLanguages ? JSON.parse(savedLanguages) : placeholderLanguages.value
     attachPacks(languages.value)
-    
     dict.value = buildDictFromPacks()
     i18nList.value = [...dict.value]
   }
@@ -578,7 +554,7 @@ onMounted(async () => {
   loadVersionInfo()
   
   // 加载语言列表（从已初始化的store中获取数据）
-  await loadLanguagesFromServer()
+  await loadLanguagesFromServer(false)
 })
 
 // 移除自动保存到localStorage的watch，因为现在数据源是服务器
@@ -793,8 +769,8 @@ async function saveLang() {
         }
       }
       
-      // 新增成功后，重新加载完整数据以确保数据同步
-      await loadLanguagesFromServer()
+  // 新增成功后，强制刷新获取最新配置（包含新语言的空模板）
+  await loadLanguagesFromServer(true)
       
     } else {
       // 编辑语言 - 只更新本地配置
@@ -874,19 +850,30 @@ async function createLanguagePackage() {
 
 async function removeLang(index: number) {
   const l = languages.value[index]
-  if (l.builtin) return
-  
+  if (!l) return
+
+  // 禁止删除当前正在使用的语言
+  if (i18nStore.locale === l.code) {
+    ElMessage.warning('当前使用中的语言不能删除')
+    return
+  }
+
+  // 可选：内置语言不允许删除（保持原行为）
+  if (l.builtin) {
+    ElMessage.info('内置语言不可删除')
+    return
+  }
+
   try {
     await ElMessageBox.confirm(`确定删除语言「${l.name}」吗？`, '提示', { type: 'warning' })
-    
-    // 调用后端API删除语言
+
     await I18nApiService.deleteLanguage(l.code)
-    
+
     ElMessage.success('删除成功')
-    
-    // 删除成功后，重新加载完整数据以确保数据同步
-    await loadLanguagesFromServer()
-    
+
+    // 强制刷新以拿到最新列表和 messages
+    await loadLanguagesFromServer(true)
+
   } catch (error) {
     if (error !== 'cancel') {
       ElMessage.error('删除语言失败，请重试')
@@ -990,33 +977,7 @@ async function startTranslationInPreview() {
   }
 }
 
-// 刷新指定语言的缓存
-async function refreshLanguageCache(languageCode: string) {
-  try {
-    const { useI18nStore } = await import('@/store/i18n')
-    const { switchLanguage } = await import('@/i18n')
-    const i18nStore = useI18nStore()
-    
-    // 从服务器重新获取该语言的最新数据
-    const languageData = await I18nApiService.getLanguage(languageCode)
-    
-    // 更新store中的messages缓存
-    // 直接使用languageData，不需要.translations包装
-    i18nStore.messages[languageCode] = languageData
-    
-    // 保存到本地缓存
-    await i18nStore.saveToCache()
-    
-    // 如果当前正在使用这个语言，立即切换以应用新的翻译
-    if (i18nStore.locale === languageCode) {
-      await switchLanguage(languageCode)
-    }
-    
-    ElMessage.success(`${languageCode} 语言缓存已更新，可立即切换使用`)
-  } catch (error) {
-    ElMessage.warning(`刷新语言缓存失败，请手动刷新页面`)
-  }
-}
+// （已移除 refreshLanguageCache：不再需要单独刷新单一语言缓存，依赖全量缓存刷新逻辑）
 
 // 提交翻译结果
 async function submitTranslation() {
@@ -1046,8 +1007,8 @@ async function submitTranslation() {
     // 关闭预览弹窗
     translationPreviewVisible.value = false
 
-    // 重新加载数据（这会同时刷新语言列表和版本信息）
-    await loadLanguagesFromServer()
+  // 重新加载数据（强制刷新，确保新翻译立即可见）
+  await loadLanguagesFromServer(true)
 
   } catch (error) {
     if (error !== 'cancel') {
