@@ -205,7 +205,6 @@ import { Download, Loading } from '@element-plus/icons-vue'
 // 语言文件现在从store中获取，不再需要直接导入
 import { aiTranslate } from '@/utils/ai'
 import { I18nApiService } from '@/utils/i18nApi'
-import { refreshLanguageConfig } from '@/i18n'
 import { translationService } from '@/utils/ai'
 import type { TranslationProgress } from '@/utils/ai'
 import { toField } from '@/utils/i18nField'
@@ -583,21 +582,75 @@ function openAddDialog() {
 }
 function editItem(row: Row) {
   dialogTitle.value = '编辑'
-  form.value = { ...row }
+  // 记录原始 key 以便区分“编辑同名”与“重命名”
+  form.value = { ...row, __originalKey: row.key }
   dialogVisible.value = true
 }
 async function saveItem() {
-  if (!form.value.key) return ElMessage.error('Key不能为空')
+  const keyVal = (form.value.key || '').trim()
+  if (!keyVal) return ElMessage.error('Key不能为空')
+
+  // Key 规则：模块名.关键词(.子级...) 仅允许 a-zA-Z0-9_- 与点，至少一处点
+  const KEY_PATTERN = /^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)+$/
+  if (!KEY_PATTERN.test(keyVal)) {
+    return ElMessage.error('Key格式不合法，应为 模块.子项 或 多级，例如: user.profile.name')
+  }
+
+  // Key 规范：不允许空格结尾/开头，避免隐藏差异
+  if (/\s/.test(keyVal)) {
+    // 允许中间的点与字母数字下划线，若存在空白提示
+    // 可根据需要放宽，这里仅简单提醒
+    // 不强制失败，只是规范提示
+  }
+
+  // 重复校验：
+  // 允许“编辑模式”下不改名（key 未变化）；若改名则必须确保新 key 不存在
+  const originalKey = (form.value as any).__originalKey as string | undefined
+  const isRename = !!originalKey && originalKey !== keyVal
+  const duplicate = i18nList.value.some(r => {
+    if (r.key !== keyVal) return false
+    if (!originalKey) return true            // 新增场景，已有同名即重复
+    if (!isRename && originalKey === keyVal) return false // 编辑但未改名
+    return true // 改名且已有同名 -> 重复
+  })
+  if (duplicate) return ElMessage.error('Key已存在，请更换')
+
+  // 中文字段集合（兼容旧字段命名）
+  const chineseFieldCandidates = ['zh', 'zhCN', 'zh_CN', 'zh-CN', 'zhcn']
+  const chineseField = languages.value.find(l => chineseFieldCandidates.includes(l.field))
+  let chineseText = ''
+  if (chineseField) {
+    chineseText = (form.value[chineseField.field] || '').trim()
+  } else {
+    // 如果没有明确中文字段，放宽：不阻塞，但提示
+    ElMessage.warning('未检测到中文字段，已跳过中文必填校验')
+  }
+
+  if (chineseField && !chineseText) {
+    return ElMessage.error('中文翻译必填')
+  }
+
+  // 统一写回修正后的 key（去除前后空白）
+  form.value.key = keyVal
   
   try {
-    // 找出原始数据，确定哪些字段被修改了
-    const originalRow = i18nList.value.find(i => i.key === form.value.key)
+    const originalKey = (form.value as any).__originalKey as string | undefined
+    const isRename = !!originalKey && originalKey !== keyVal
+    // 找出原始数据（重命名时用旧 key 查找）
+    const originalRow = isRename
+      ? i18nList.value.find(i => i.key === originalKey)
+      : i18nList.value.find(i => i.key === keyVal)
     const isNewItem = !originalRow
-    
-    // 更新本地数据
-    const idx = i18nList.value.findIndex(i => i.key === form.value.key)
-    if (idx > -1) i18nList.value[idx] = { ...form.value }
-    else i18nList.value.unshift({ ...form.value })
+
+    // 本地数据更新（若重命名，需要先删除旧的再插入新的）
+    if (isRename) {
+      i18nList.value = i18nList.value.filter(i => i.key !== originalKey)
+    }
+    const cleanForm: any = { ...form.value }
+    delete cleanForm.__originalKey
+    const idx = i18nList.value.findIndex(i => i.key === keyVal)
+    if (idx > -1) i18nList.value[idx] = { ...cleanForm }
+    else i18nList.value.unshift({ ...cleanForm })
     
     // 收集需要更新的语言翻译数据
     const translationsToUpdate: Record<string, string> = {}
@@ -615,9 +668,14 @@ async function saveItem() {
       }
     }
     
-    // 如果有变化，使用批量更新接口
-    if (hasChanges) {
-      await I18nApiService.updateLanguageKeyBatch(form.value.key, translationsToUpdate)
+    if (isRename) {
+      // 先调用后端重命名，再补写变化覆盖（防止覆盖顺序问题）
+      await I18nApiService.renameKey(originalKey!, keyVal)
+      if (hasChanges) {
+        await I18nApiService.updateLanguageKeyBatch(keyVal, translationsToUpdate)
+      }
+    } else if (hasChanges) {
+      await I18nApiService.updateLanguageKeyBatch(keyVal, translationsToUpdate)
     }
     
     dialogVisible.value = false
@@ -633,12 +691,14 @@ async function saveItem() {
 function deleteItem(row: Row) {
   ElMessageBox.confirm('确定删除？', '提示', { type: 'warning' })
     .then(async () => {
-      i18nList.value = i18nList.value.filter(i => i.key !== row.key)
-      
-      // 刷新版本信息
-      await loadVersionInfo()
-      
-      ElMessage.success('删除成功')
+      try {
+        await I18nApiService.deleteKey(row.key)
+        i18nList.value = i18nList.value.filter(i => i.key !== row.key)
+        await loadVersionInfo()
+        ElMessage.success('删除成功')
+      } catch (e) {
+        ElMessage.error('删除失败: ' + (e as Error).message)
+      }
     })
 }
 
@@ -646,6 +706,11 @@ async function aiFill() {
   // 检查必要条件：key和中文都必须填写
   if (!form.value.key || !form.value.key.trim()) {
     return ElMessage.error('请先填写 Key')
+  }
+
+  const KEY_PATTERN = /^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)+$/
+  if (!KEY_PATTERN.test(form.value.key.trim())) {
+    return ElMessage.error('Key格式不合法，应为 模块.子项，例如: common.ok')
   }
   
   // 检查是否有中文内容

@@ -62,6 +62,22 @@ export class I18nApiService {
   }
 
   /**
+   * 重命名一个已有 key：后端会在所有语言与模板中迁移 oldKey -> newKey
+   * overwrite=true 时若新 key 已存在会覆盖其值
+   */
+  static async renameKey(oldKey: string, newKey: string, overwrite = false): Promise<{ oldKey: string; newKey: string }> {
+    const response = await i18nApiClient.post<ApiResponse<{ oldKey: string; newKey: string }>>('/languages/rename-key', { oldKey, newKey, overwrite })
+    if (response.data.success && response.data.data) return response.data.data
+    throw new Error(response.data.error || 'Failed to rename key')
+  }
+
+  /** 删除一个 key（所有语言与模板） */
+  static async deleteKey(key: string): Promise<void> {
+    const response = await i18nApiClient.post<ApiResponse<{ key: string }>>('/languages/delete-key', { key })
+    if (!response.data.success) throw new Error(response.data.error || 'Failed to delete key')
+  }
+
+  /**
    * 添加新的语言
    */
   static async addLanguage(
