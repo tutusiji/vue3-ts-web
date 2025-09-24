@@ -24,21 +24,31 @@
         <el-tag type="info" size="small">
           本地版本: {{ versionInfo.local.version }}
         </el-tag>
-        <el-tag :type="versionInfo.needsUpdate ? 'warning' : 'success'" size="small" style="margin-left: 8px;">
+        <el-tag type="success" size="small" style="margin-left: 8px;">
           远程版本: {{ versionInfo.remote.version }}
         </el-tag>
         <el-tag type="primary" size="small" style="margin-left: 8px;">
           当前使用: {{ versionInfo.current.version }}
-        </el-tag>
-        <el-tag v-if="versionInfo.needsUpdate" type="danger" size="small" style="margin-left: 8px;">
-          需要更新
         </el-tag>
         <el-tag type="success" size="small" style="margin-left: 8px;">
           更新时间: {{ formatDate(versionInfo.current.lastUpdated) }}
         </el-tag>
       </div>
     <el-table :data="paged" style="width:100%">
-      <el-table-column prop="key" label="Key" width="260" />
+      <el-table-column label="Key" width="260">
+        <template #default="scope">
+          <span>{{ scope.row.key }}</span>
+          <el-button 
+            type="text" 
+            size="small" 
+            @click="copyToClipboard(scope.row.key)"
+            style="margin-left: 8px; padding: 0;"
+            title="复制Key"
+          >
+            <el-icon><DocumentCopy /></el-icon>
+          </el-button>
+        </template>
+      </el-table-column>
       <el-table-column
         v-for="lang in languages"
         :key="lang.field"
@@ -201,7 +211,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Download, Loading } from '@element-plus/icons-vue'
+import { Download, Loading, DocumentCopy } from '@element-plus/icons-vue'
 // 语言文件现在从store中获取，不再需要直接导入
 import { aiTranslate } from '@/utils/ai'
 import { I18nApiService } from '@/utils/i18nApi'
@@ -234,10 +244,6 @@ const pageSize = ref(20)
 const aiLoading = ref(false)
 const downloading = ref(false)
 const creating = ref(false)
-
-// 防抖相关变量
-let refreshDataTimer: any = null
-const isRefreshing = ref(false)
 
 // 语言管理弹窗状态
 const langDialogVisible = ref(false)
@@ -293,6 +299,27 @@ function compareVersions(version1: string, version2: string): number {
   return 0
 }
 
+// 复制到剪贴板功能
+async function copyToClipboard(text: string) {
+  try {
+    await navigator.clipboard.writeText(text)
+    ElMessage.success('已复制到剪贴板')
+  } catch (error) {
+    // 如果现代API不可用，使用传统方法
+    const textArea = document.createElement('textarea')
+    textArea.value = text
+    document.body.appendChild(textArea)
+    textArea.select()
+    try {
+      document.execCommand('copy')
+      ElMessage.success('已复制到剪贴板')
+    } catch (err) {
+      ElMessage.error('复制失败，请手动复制')
+    }
+    document.body.removeChild(textArea)
+  }
+}
+
 // 翻译状态管理
 const translatingLanguages = ref(new Set<string>())
 
@@ -328,7 +355,6 @@ const versionInfo = ref<{
   local: { version: string; lastUpdated: string };
   remote: { version: string; lastUpdated: string };
   current: { version: string; lastUpdated: string };
-  needsUpdate: boolean;
 } | null>(null)
 const types = computed(() => {
   const set = new Set<string>()
@@ -378,25 +404,17 @@ function getVal(obj:any, path:string) {
   return path.split('.').reduce((acc, cur) => (acc ? acc[cur] : undefined), obj) || ''
 }
 
-// 防抖刷新数据函数，避免频繁调用API
-function debounceRefreshData() {
-  if (refreshDataTimer) {
-    clearTimeout(refreshDataTimer)
+// 刷新所有数据 - 用于保证多用户环境下的数据一致性
+async function refreshAllData() {
+  try {
+    // 强制从服务器重新加载语言和翻译数据
+    await loadLanguagesFromServer(true)
+    // 重新加载版本信息
+    await loadVersionInfo()
+    ElMessage.success('数据已更新')
+  } catch (error) {
+    ElMessage.error('刷新数据失败: ' + (error as Error).message)
   }
-  
-  refreshDataTimer = setTimeout(async () => {
-    if (isRefreshing.value) return
-    
-    isRefreshing.value = true
-    try {
-      // 只调用一次数据加载，避免重复API调用
-      await loadLanguagesFromServer()
-    } catch (error) {
-      // 刷新数据失败静默处理
-    } finally {
-      isRefreshing.value = false
-    }
-  }, 1000) // 1秒防抖
 }
 
 // 从服务器加载语言配置和翻译数据（避免已初始化情况下的重复请求）
@@ -462,9 +480,7 @@ function loadVersionInfo() {
       current: {
         version: i18nStore.version || 'Unknown',
         lastUpdated: i18nStore.lastUpdated || 'Unknown'
-      },
-      needsUpdate: i18nStore.remoteVersion && i18nStore.localVersion ? 
-        compareVersions(i18nStore.remoteVersion, i18nStore.localVersion) > 0 : false
+      }
     }
     
     // 注释掉异步获取远程版本信息的逻辑，因为初始化时已经获取过了
@@ -486,8 +502,7 @@ function loadVersionInfo() {
       current: {
         version: 'Unknown',
         lastUpdated: 'Unknown'
-      },
-      needsUpdate: false
+      }
     }
   }
 }
@@ -503,8 +518,7 @@ async function getRemoteVersionInfo() {
       remote: {
         version: remoteVersionInfo.remote.version,
         lastUpdated: remoteVersionInfo.remote.lastUpdated
-      },
-      needsUpdate: remoteVersionInfo.needsUpdate
+      }
     }
     
   } catch (error) {
@@ -515,8 +529,7 @@ async function getRemoteVersionInfo() {
         remote: {
           version: 'Unknown',
           lastUpdated: 'Unknown'
-        },
-        needsUpdate: false
+        }
       }
     }
   }
@@ -633,25 +646,13 @@ async function saveItem() {
   // 统一写回修正后的 key（去除前后空白）
   form.value.key = keyVal
   
+  // 找出原始数据（重命名时用旧 key 查找）
+  const originalRow = isRename
+    ? i18nList.value.find(i => i.key === originalKey)
+    : i18nList.value.find(i => i.key === keyVal)
+  const isNewItem = !originalRow
+  
   try {
-    const originalKey = (form.value as any).__originalKey as string | undefined
-    const isRename = !!originalKey && originalKey !== keyVal
-    // 找出原始数据（重命名时用旧 key 查找）
-    const originalRow = isRename
-      ? i18nList.value.find(i => i.key === originalKey)
-      : i18nList.value.find(i => i.key === keyVal)
-    const isNewItem = !originalRow
-
-    // 本地数据更新（若重命名，需要先删除旧的再插入新的）
-    if (isRename) {
-      i18nList.value = i18nList.value.filter(i => i.key !== originalKey)
-    }
-    const cleanForm: any = { ...form.value }
-    delete cleanForm.__originalKey
-    const idx = i18nList.value.findIndex(i => i.key === keyVal)
-    if (idx > -1) i18nList.value[idx] = { ...cleanForm }
-    else i18nList.value.unshift({ ...cleanForm })
-    
     // 收集需要更新的语言翻译数据
     const translationsToUpdate: Record<string, string> = {}
     let hasChanges = false
@@ -672,29 +673,43 @@ async function saveItem() {
       // 先调用后端重命名，再补写变化覆盖（防止覆盖顺序问题）
       await I18nApiService.renameKey(originalKey!, keyVal)
       if (hasChanges) {
-        await I18nApiService.updateLanguageKeyBatch(keyVal, translationsToUpdate)
+        await I18nApiService.updateKey(keyVal, translationsToUpdate)
       }
     } else if (hasChanges) {
-      await I18nApiService.updateLanguageKeyBatch(keyVal, translationsToUpdate)
+      if (isNewItem) {
+        // 新增key - 使用create接口，包含重复检查
+        await I18nApiService.createKey(keyVal, translationsToUpdate)
+      } else {
+        // 编辑现有key - 使用update接口，不检查重复
+        await I18nApiService.updateKey(keyVal, translationsToUpdate)
+      }
     }
     
     dialogVisible.value = false
     
-    // 刷新版本信息
-    await loadVersionInfo()
+    // 重新加载完整数据以保证一致性
+    await refreshAllData()
     
     ElMessage.success('保存成功')
-  } catch (error) {
-    ElMessage.error('保存失败: ' + (error as Error).message)
+  } catch (error: any) {
+    // 处理409冲突错误（key已存在）
+    if (error.response && error.response.status === 409) {
+      ElMessage.error('该Key已存在，请使用不同的Key名称')
+    } else {
+      ElMessage.error('保存失败: ' + (error.response?.data?.error || error.message || '未知错误'))
+    }
+    
+    // 如果保存失败，重新加载数据以保证状态一致性
+    await refreshAllData()
   }
 }
 function deleteItem(row: Row) {
-  ElMessageBox.confirm('确定删除？', '提示', { type: 'warning' })
+  ElMessageBox.confirm(`确定删除Key「${row.key}」吗？`, '提示', { type: 'warning' })
     .then(async () => {
       try {
         await I18nApiService.deleteKey(row.key)
-        i18nList.value = i18nList.value.filter(i => i.key !== row.key)
-        await loadVersionInfo()
+        // 重新加载完整数据以保证一致性
+        await refreshAllData()
         ElMessage.success('删除成功')
       } catch (e) {
         ElMessage.error('删除失败: ' + (e as Error).message)
@@ -838,23 +853,11 @@ async function saveLang() {
   await loadLanguagesFromServer(true)
       
     } else {
-      // 编辑语言 - 只更新本地配置
-      const old = languages.value[langEditIndex.value]
-      const changingField = old.field !== field
-      languages.value[langEditIndex.value] = { ...old, name, code, field }
-      if (changingField) {
-        // 迁移列数据
-        i18nList.value = i18nList.value.map(r => {
-          const nv: Row = { ...r }
-          nv[field] = r[old.field] || ''
-          if (field !== old.field) delete nv[old.field]
-          return nv
-        })
-      }
+      // 编辑语言 - 更新后重新获取数据
       ElMessage.success('语言配置更新成功')
       
-      // 编辑语言时使用防抖机制，避免频繁调用API
-      debounceRefreshData()
+      // 重新加载完整数据以保证一致性
+      await refreshAllData()
     }
     
     langEditVisible.value = false

@@ -54,11 +54,19 @@ export class I18nApiService {
   }
 
   /**
-   * 批量更新多个语言的指定key
+   * 创建新的多语言key
    */
-  static async updateLanguageKeyBatch(key: string, translations: Record<string, string>): Promise<void> {
-    const response = await i18nApiClient.post<ApiResponse>('/languages/update-key-batch', { key, translations })
-    if (!response.data.success) throw new Error(response.data.error || `Failed to batch update key: ${key}`)
+  static async createKey(key: string, translations: Record<string, string>): Promise<void> {
+    const response = await i18nApiClient.post<ApiResponse>('/languages/create-key', { key, translations })
+    if (!response.data.success) throw new Error(response.data.error || `Failed to create key: ${key}`)
+  }
+
+  /**
+   * 更新现有key的翻译内容
+   */
+  static async updateKey(key: string, translations: Record<string, string>): Promise<void> {
+    const response = await i18nApiClient.put<ApiResponse>('/languages/update-key', { key, translations })
+    if (!response.data.success) throw new Error(response.data.error || `Failed to update key: ${key}`)
   }
 
   /**
