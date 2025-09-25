@@ -287,7 +287,7 @@
 <script lang="ts" setup>
 import type { ComponentSize, FormInstance, FormRules } from 'element-plus'
 import { ElNotification } from 'element-plus'
-import { throttle, debounce } from 'lodash'
+import { throttle, debounce } from 'lodash-es'
 // import type { FormProps } from 'element-plus'
 // import prettier from 'prettier/standalone'
 // import parserBabel from 'prettier/parser-babel'

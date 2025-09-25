@@ -4,6 +4,16 @@
       <h2>{{ $t('menu.internationalization') }}</h2>
       
       <div class="actions">
+        <el-input 
+          v-model="searchKeyword" 
+          placeholder="搜索Key或中文内容..." 
+          style="width: 280px; margin-right: 12px;"
+          clearable
+        >
+          <template #prefix>
+            <el-icon><Search /></el-icon>
+          </template>
+        </el-input>
         <el-select v-model="selectedType" placeholder="类型" style="width: 180px" @change="onTypeChange">
           <el-option label="全部" value="all" />
           <el-option v-for="t in types" :key="t" :label="t" :value="t" />
@@ -209,9 +219,9 @@
   </div>
 </template>
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Download, Loading, DocumentCopy } from '@element-plus/icons-vue'
+import { Download, Loading, DocumentCopy, Search } from '@element-plus/icons-vue'
 // 语言文件现在从store中获取，不再需要直接导入
 import { aiTranslate } from '@/utils/ai'
 import { I18nApiService } from '@/utils/i18nApi'
@@ -219,6 +229,7 @@ import { translationService } from '@/utils/ai'
 import type { TranslationProgress } from '@/utils/ai'
 import { toField } from '@/utils/i18nField'
 import { useI18nStore } from '@/store/i18n'
+import { debounce } from 'lodash-es'
 
 type Row = { key: string; [field: string]: any }
 type LangDef = { name: string; code: string; field: string; builtin?: boolean; pack?: any }
@@ -244,6 +255,17 @@ const pageSize = ref(20)
 const aiLoading = ref(false)
 const downloading = ref(false)
 const creating = ref(false)
+
+// 搜索相关
+const searchKeyword = ref('')
+const actualSearchKeyword = ref('')
+
+// 创建防抖函数
+const debouncedUpdateSearch = debounce((value: string) => {
+  actualSearchKeyword.value = value
+  // 搜索时重置到第一页
+  page.value = 1
+}, 400)
 
 // 语言管理弹窗状态
 const langDialogVisible = ref(false)
@@ -319,6 +341,11 @@ async function copyToClipboard(text: string) {
     document.body.removeChild(textArea)
   }
 }
+
+// 搜索防抖处理
+watch(searchKeyword, (newValue) => {
+  debouncedUpdateSearch(newValue)
+}, { immediate: true })
 
 // 翻译状态管理
 const translatingLanguages = ref(new Set<string>())
@@ -575,8 +602,36 @@ onMounted(async () => {
 // }, { deep: true })
 
 const filtered = computed(() => {
-  if (selectedType.value === 'all') return i18nList.value
-  return i18nList.value.filter(r => r.key.startsWith(selectedType.value + '.'))
+  let result = i18nList.value
+  
+  // 类型筛选
+  if (selectedType.value !== 'all') {
+    result = result.filter(r => r.key.startsWith(selectedType.value + '.'))
+  }
+  
+  // 搜索筛选
+  if (actualSearchKeyword.value && actualSearchKeyword.value.trim()) {
+    const keyword = actualSearchKeyword.value.trim().toLowerCase()
+    result = result.filter(row => {
+      // 搜索Key
+      if (row.key.toLowerCase().includes(keyword)) {
+        return true
+      }
+      
+      // 搜索中文内容（检查所有可能的中文字段）
+      const chineseFields = ['zh', 'zhCN', 'zh_CN', 'zh-CN', 'zhcn']
+      for (const field of chineseFields) {
+        const chineseValue = row[field]
+        if (chineseValue && typeof chineseValue === 'string' && chineseValue.toLowerCase().includes(keyword)) {
+          return true
+        }
+      }
+      
+      return false
+    })
+  }
+  
+  return result
 })
 
 const paged = computed(() => {

@@ -53,7 +53,7 @@
 <script lang="ts">
 import { defineComponent, ref } from 'vue'
 import { ElInput, ElSelect, ElDatePicker } from 'element-plus'
-import { throttle, debounce } from 'lodash'
+import { throttle, debounce } from 'lodash-es'
 import CascaderSelect from './DynamicForm/formComponents/CascaderSelect.vue'
 import { cascaderOptions } from './mock-data'
 
